@@ -17,7 +17,7 @@ import {
 } from '../utils/feature-access';
 import { getArenaAccessInfo } from '../utils/arena-access';
 import logger from '../utils/logger';
-import { env, envWithHelpers } from '../config/env';
+import { envWithHelpers } from '../config/env';
 import { RANK_TIERS } from '../middleware/rankMiddleware';
 
 const router = express.Router();
@@ -149,7 +149,7 @@ router.get('/tasks', async (req, res) => {
     logger.error('❌ Arena tasks endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment ? errorMessage : 'Failed to fetch tasks',
+              error: envWithHelpers.isDevelopment ? errorMessage : 'Failed to fetch tasks',
       timestamp: new Date().toISOString(),
     });
   }
@@ -185,7 +185,7 @@ router.get('/users', async (req, res) => {
     logger.error('❌ Arena users endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment ? errorMessage : 'Failed to fetch users',
+      error: envWithHelpers.isDevelopment ? errorMessage : 'Failed to fetch users',
       timestamp: new Date().toISOString(),
     });
   }
@@ -400,7 +400,7 @@ router.get('/submissions', async (req, res) => {
     logger.error('❌ Arena user submissions endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to fetch user submissions',
       timestamp: new Date().toISOString(),
@@ -557,7 +557,7 @@ router.post('/submit', async (req, res) => {
     logger.error('❌ Arena submit endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment ? errorMessage : 'Failed to create submission',
+      error: envWithHelpers.isDevelopment ? errorMessage : 'Failed to create submission',
       timestamp: new Date().toISOString(),
     });
   }
@@ -915,7 +915,7 @@ router.post('/auto-score', async (req, res) => {
     logger.error('❌ Arena auto-score endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to auto-score submission',
       timestamp: new Date().toISOString(),
@@ -1128,7 +1128,7 @@ router.post('/score', async (req, res) => {
     logger.error('❌ Arena score endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment ? errorMessage : 'Failed to score submission',
+      error: envWithHelpers.isDevelopment ? errorMessage : 'Failed to score submission',
       timestamp: new Date().toISOString(),
     });
   }
@@ -1302,7 +1302,7 @@ router.post('/review-flag', async (req, res) => {
     logger.error('❌ Arena review-flag endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to flag submission for review',
       timestamp: new Date().toISOString(),
@@ -1533,7 +1533,7 @@ router.post('/manual-score', async (req, res) => {
     logger.error('❌ Arena manual-score endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to manually score submission',
       timestamp: new Date().toISOString(),
@@ -1607,7 +1607,7 @@ router.get('/stats', async (req, res) => {
     logger.error('❌ Arena stats endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to fetch arena statistics',
       timestamp: new Date().toISOString(),
@@ -1841,7 +1841,7 @@ router.get('/leaderboard', async (req, res) => {
     logger.error('❌ Arena leaderboard endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment ? errorMessage : 'Failed to fetch leaderboard',
+      error: envWithHelpers.isDevelopment ? errorMessage : 'Failed to fetch leaderboard',
       timestamp: new Date().toISOString(),
     });
   }
@@ -1992,7 +1992,7 @@ router.get('/leaderboard/top', async (req, res) => {
     logger.error('❌ Arena top leaderboard endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to fetch top leaderboard',
       timestamp: new Date().toISOString(),
@@ -2194,7 +2194,7 @@ router.get('/leaderboard/my-rank', async (req, res) => {
     logger.error('❌ Arena my-rank endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment ? errorMessage : 'Failed to calculate user rank',
+      error: envWithHelpers.isDevelopment ? errorMessage : 'Failed to calculate user rank',
       timestamp: new Date().toISOString(),
     });
   }
@@ -2466,7 +2466,7 @@ router.post('/tasks/:id/score', async (req, res) => {
     logger.error('❌ Arena task scoring endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment ? errorMessage : 'Failed to score submission',
+      error: envWithHelpers.isDevelopment ? errorMessage : 'Failed to score submission',
       timestamp: new Date().toISOString(),
     });
   }
@@ -2522,7 +2522,7 @@ router.get(
       logger.error('❌ Premium features endpoint error:', err);
       res.status(500).json({
         success: false,
-        error: env.isDevelopment
+        error: envWithHelpers.isDevelopment
           ? errorMessage
           : 'Failed to access premium features',
         timestamp: new Date().toISOString(),
@@ -2673,7 +2673,7 @@ router.get('/locked/:feature_name', attachUserRank, async (req, res) => {
     logger.error('❌ Feature access check endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to check feature access',
       timestamp: new Date().toISOString(),
@@ -2755,7 +2755,7 @@ router.get('/access-check', attachUserRank, async (req, res) => {
     logger.error('❌ Arena access check endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment ? errorMessage : 'Failed to check Arena access',
+      error: envWithHelpers.isDevelopment ? errorMessage : 'Failed to check Arena access',
       timestamp: new Date().toISOString(),
     });
   }
@@ -2829,7 +2829,7 @@ router.get('/progress-bar', attachUserRank, async (req, res) => {
     logger.error('❌ Arena progress bar endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment ? errorMessage : 'Failed to fetch user progress',
+      error: envWithHelpers.isDevelopment ? errorMessage : 'Failed to fetch user progress',
       timestamp: new Date().toISOString(),
     });
   }
@@ -3004,7 +3004,7 @@ router.get('/user-score', attachUserRank, async (req, res) => {
     logger.error('❌ Arena user score endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment ? errorMessage : 'Failed to fetch user score',
+      error: envWithHelpers.isDevelopment ? errorMessage : 'Failed to fetch user score',
       timestamp: new Date().toISOString(),
     });
   }
@@ -3235,7 +3235,7 @@ router.get('/task-history', attachUserRank, async (req, res) => {
     logger.error('❌ Arena task history endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment ? errorMessage : 'Failed to fetch task history',
+      error: envWithHelpers.isDevelopment ? errorMessage : 'Failed to fetch task history',
       timestamp: new Date().toISOString(),
     });
   }
@@ -3495,7 +3495,7 @@ router.get('/summary-ai', attachUserRank, async (req, res) => {
     logger.error('❌ Arena AI summary endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment ? errorMessage : 'Failed to generate AI summary',
+      error: envWithHelpers.isDevelopment ? errorMessage : 'Failed to generate AI summary',
       timestamp: new Date().toISOString(),
     });
   }
@@ -3749,7 +3749,7 @@ router.post('/reflection-summary', attachUserRank, async (req, res) => {
     logger.error('❌ Arena reflection summary endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to generate reflection summary',
       timestamp: new Date().toISOString(),
@@ -4094,7 +4094,7 @@ router.get('/weekly-report', attachUserRank, async (req, res) => {
     logger.error('❌ Arena weekly report endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to generate weekly report',
       timestamp: new Date().toISOString(),
@@ -4346,7 +4346,7 @@ router.get('/user-progress', attachUserRank, async (req, res) => {
     logger.error('❌ Arena user progress endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to generate user progress report',
       timestamp: new Date().toISOString(),
@@ -4669,7 +4669,7 @@ router.get('/monthly-review', attachUserRank, async (req, res) => {
     logger.error('❌ Arena monthly review endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to generate monthly review',
       timestamp: new Date().toISOString(),
@@ -4967,7 +4967,7 @@ router.get('/leaderboard/skill', attachUserRank, async (req, res) => {
     logger.error('❌ Arena skill leaderboard endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to fetch skill leaderboard',
       timestamp: new Date().toISOString(),
@@ -5201,7 +5201,7 @@ router.post('/feedback', attachUserRank, async (req, res) => {
     logger.error('❌ Arena feedback endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment ? errorMessage : 'Failed to submit feedback',
+      error: envWithHelpers.isDevelopment ? errorMessage : 'Failed to submit feedback',
       timestamp: new Date().toISOString(),
     });
   }
@@ -5464,7 +5464,7 @@ router.get('/admin/feedback/overview', attachUserRank, async (req, res) => {
     logger.error('❌ Admin feedback overview endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to generate feedback overview',
       timestamp: new Date().toISOString(),
@@ -5889,7 +5889,7 @@ router.post('/tasks/:taskId/feedback', attachUserRank, async (req, res) => {
     logger.error('❌ Task feedback endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to submit task feedback',
       timestamp: new Date().toISOString(),
@@ -6140,7 +6140,7 @@ router.get('/feedback/stats', attachUserRank, async (req, res) => {
     logger.error('❌ Arena feedback stats endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to generate feedback statistics',
       timestamp: new Date().toISOString(),
@@ -6415,7 +6415,7 @@ router.get('/tasks/leaderboard', attachUserRank, async (req, res) => {
     logger.error('❌ Task leaderboard endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to generate task leaderboard',
       timestamp: new Date().toISOString(),
@@ -6695,7 +6695,7 @@ router.get('/users/leaderboard', attachUserRank, async (req, res) => {
     logger.error('❌ User leaderboard endpoint error:', err);
     res.status(500).json({
       success: false,
-      error: env.isDevelopment
+      error: envWithHelpers.isDevelopment
         ? errorMessage
         : 'Failed to generate user leaderboard',
       timestamp: new Date().toISOString(),
@@ -7024,7 +7024,7 @@ router.get(
       logger.error('❌ User task analytics endpoint error:', err);
       res.status(500).json({
         success: false,
-        error: env.isDevelopment
+        error: envWithHelpers.isDevelopment
           ? errorMessage
           : 'Failed to generate user task analytics',
         timestamp: new Date().toISOString(),
@@ -7062,7 +7062,7 @@ router.get('/test/scoring-audit', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to run AI scoring audit',
-      details: env.isDevelopment ? errorMessage : 'Internal server error',
+      details: envWithHelpers.isDevelopment ? errorMessage : 'Internal server error',
       timestamp: new Date().toISOString(),
     });
   }
@@ -7091,7 +7091,7 @@ router.get('/test/quick-audit', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to run quick consistency check',
-      details: env.isDevelopment ? errorMessage : 'Internal server error',
+      details: envWithHelpers.isDevelopment ? errorMessage : 'Internal server error',
       timestamp: new Date().toISOString(),
     });
   }
@@ -7101,7 +7101,7 @@ router.get('/test/quick-audit', async (req, res) => {
 router.get(
   '/admin/arena-audit',
   attachUserRank,
-  requireRank('platinum'),
+  requireRank('Platinum'),
   async (req, res) => {
     try {
       // At this point, req.user is guaranteed to exist and have platinum+ rank
@@ -7237,7 +7237,7 @@ router.get(
       res.status(500).json({
         success: false,
         error: 'Failed to generate Arena scoring audit dashboard',
-        details: env.isDevelopment ? errorMessage : 'Internal server error',
+        details: envWithHelpers.isDevelopment ? errorMessage : 'Internal server error',
         timestamp: new Date().toISOString(),
       });
     }
@@ -7248,7 +7248,7 @@ router.get(
 router.get(
   '/admin/audit/history',
   attachUserRank,
-  requireRank('platinum'),
+  requireRank('Platinum'),
   async (req, res) => {
     try {
       const user = req.user!;
@@ -7395,7 +7395,7 @@ router.get(
       res.status(500).json({
         success: false,
         error: 'Failed to fetch audit history',
-        details: env.isDevelopment ? errorMessage : 'Internal server error',
+        details: envWithHelpers.isDevelopment ? errorMessage : 'Internal server error',
         timestamp: new Date().toISOString(),
       });
     }
@@ -7406,7 +7406,7 @@ router.get(
 router.get(
   '/admin/audit/run/:runId',
   attachUserRank,
-  requireRank('platinum'),
+  requireRank('Platinum'),
   async (req, res) => {
     try {
       const user = req.user!;
@@ -7546,7 +7546,7 @@ router.get(
       res.status(500).json({
         success: false,
         error: 'Failed to fetch audit run details',
-        details: env.isDevelopment ? errorMessage : 'Internal server error',
+        details: envWithHelpers.isDevelopment ? errorMessage : 'Internal server error',
         timestamp: new Date().toISOString(),
       });
     }
@@ -7557,7 +7557,7 @@ router.get(
 router.get(
   '/admin/audit/export',
   attachUserRank,
-  requireRank('platinum'),
+  requireRank('Platinum'),
   async (req, res) => {
     try {
       const user = req.user!;
@@ -7683,7 +7683,7 @@ router.get(
       res.status(500).json({
         success: false,
         error: 'Failed to generate audit export',
-        details: env.isDevelopment ? errorMessage : 'Internal server error',
+        details: envWithHelpers.isDevelopment ? errorMessage : 'Internal server error',
         timestamp: new Date().toISOString(),
       });
     }
@@ -7750,7 +7750,7 @@ export default router;
 router.get(
   '/admin/audit/runs',
   attachUserRank,
-  requireRank('platinum'),
+  requireRank('Platinum'),
   async (req, res) => {
     try {
       const user = req.user!;
