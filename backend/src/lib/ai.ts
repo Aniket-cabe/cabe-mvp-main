@@ -356,6 +356,55 @@ Respond with a JSON array of task titles:
   }
 }
 
+// Generate AI response for general prompts
+export async function generateAIResponse(
+  prompt: string,
+  systemMessage?: string,
+  temperature: number = 0.7,
+  maxTokens: number = 1000
+): Promise<string> {
+  try {
+    const messages = [];
+    
+    if (systemMessage) {
+      messages.push({
+        role: 'system' as const,
+        content: systemMessage,
+      });
+    }
+    
+    messages.push({
+      role: 'user' as const,
+      content: prompt,
+    });
+
+    const completion = await openai.chat.completions.create({
+      model: ai.openaiModel,
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+    });
+
+    const response = completion.choices[0]?.message?.content;
+    if (!response) {
+      throw new Error('No response from AI service');
+    }
+
+    logger.info('AI response generated', {
+      promptLength: prompt.length,
+      responseLength: response.length,
+      temperature,
+    });
+
+    return response;
+  } catch (error) {
+    logger.error('AI response generation failed', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    throw new Error('Failed to generate AI response');
+  }
+}
+
 // Health check for AI service
 export async function checkAIServiceHealth(): Promise<boolean> {
   try {

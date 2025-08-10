@@ -86,6 +86,24 @@ export async function executeSQL<T = any>(
   );
 }
 
+// Direct SQL execution wrapper for services that pass SQL strings
+export async function executeSQLString<T = any>(
+  sql: string,
+  params: any[] = [],
+  maxRetries: number = 3,
+  baseDelay: number = 100
+): Promise<T> {
+  return executeWithRetry(
+    async (client) => {
+      const { data, error } = await client.rpc('execute_sql', { sql, params });
+      if (error) throw error;
+      return data;
+    },
+    maxRetries,
+    baseDelay
+  );
+}
+
 // Optimized query operations
 export const db = {
   // User operations

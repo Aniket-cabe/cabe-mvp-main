@@ -18,7 +18,7 @@ export class EncryptionService {
       'sha256'
     );
 
-    const cipher = crypto.createCipher(this.algorithm, derivedKey);
+    const cipher = crypto.createCipherGCM(this.algorithm, derivedKey, iv);
     cipher.setAAD(Buffer.from('cabe-arena', 'utf8'));
 
     let encrypted = cipher.update(text, 'utf8', 'hex');
@@ -52,7 +52,7 @@ export class EncryptionService {
       'sha256'
     );
 
-    const decipher = crypto.createDecipher(this.algorithm, derivedKey);
+    const decipher = crypto.createDecipherGCM(this.algorithm, derivedKey, iv);
     decipher.setAAD(Buffer.from('cabe-arena', 'utf8'));
     decipher.setAuthTag(tag);
 

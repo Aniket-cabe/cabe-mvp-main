@@ -720,7 +720,7 @@ function getThresholdsForSkillAndDifficulty(
   if (skillThresholds && skillThresholds[difficulty]) {
     return skillThresholds[difficulty];
   }
-  return DEFAULT_THRESHOLDS[difficulty] || DEFAULT_THRESHOLDS.medium;
+  return (DEFAULT_THRESHOLDS as any)[difficulty] || DEFAULT_THRESHOLDS.medium;
 }
 
 /**
@@ -975,7 +975,7 @@ function generateSkillAreaContext(
   };
 
   return (
-    contexts[skillArea] ||
+    (contexts as any)[skillArea] ||
     `Standard evaluation criteria for ${skillArea} tasks at ${difficulty} difficulty level.`
   );
 }

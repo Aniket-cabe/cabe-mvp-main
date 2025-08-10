@@ -314,6 +314,7 @@ function createAuditAlertMessage(
       text: {
         type: 'mrkdwn',
         text: `*Error:*\n\`\`\`${summary.errorMessage}\`\`\``,
+        emoji: true,
       },
     });
   }
@@ -342,6 +343,7 @@ function createAuditAlertMessage(
       {
         type: 'mrkdwn',
         text: `Audit completed at ${new Date().toLocaleString()}`,
+        emoji: true,
       },
     ],
   });

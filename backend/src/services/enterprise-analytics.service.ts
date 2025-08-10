@@ -1,4 +1,4 @@
-import { executeWithRetry } from '../../db';
+import { executeSQLString } from '../../db';
 import logger from '../utils/logger';
 
 export class EnterpriseAnalyticsService {
@@ -7,7 +7,7 @@ export class EnterpriseAnalyticsService {
     dateRange: { start: string; end: string }
   ) {
     try {
-      const result = await executeWithRetry(
+      const result = await executeSQLString(
         `
         SELECT 
           t.skill_area,

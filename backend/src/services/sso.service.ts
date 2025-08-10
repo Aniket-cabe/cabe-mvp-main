@@ -1,7 +1,7 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as AzureADStrategy } from 'passport-azure-ad';
-import { executeWithRetry } from '../../db';
+import { executeSQLString } from '../../db';
 import { AuditService } from './audit.service';
 
 export class SSOService {
@@ -26,7 +26,7 @@ export class SSOService {
   }
 
   static async findOrCreateUser(provider: string, profile: any) {
-    const existingUser = await executeWithRetry(
+    const existingUser = await executeSQLString(
       'SELECT * FROM users WHERE oauth_provider = $1 AND oauth_id = $2',
       [provider, profile.id]
     );
@@ -35,7 +35,7 @@ export class SSOService {
       return existingUser.rows[0];
     }
 
-    const newUser = await executeWithRetry(
+    const newUser = await executeSQLString(
       'INSERT INTO users (email, name, oauth_provider, oauth_id, role) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [
         profile.emails[0].value,

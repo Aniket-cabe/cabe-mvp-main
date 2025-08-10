@@ -1,23 +1,23 @@
-import { executeWithRetry } from '../../db';
+import { executeSQLString } from '../../db';
 import logger from '../utils/logger';
 
 export class GDPRService {
   static async exportUserData(userId: string): Promise<any> {
     try {
-      const userData = await executeWithRetry(
-        'SELECT id, email, name, created_at, updated_at FROM users WHERE id = $1',
-        [userId]
-      );
+          const userData = await executeSQLString(
+      'SELECT id, email, name, created_at, updated_at FROM users WHERE id = $1',
+      [userId]
+    );
 
-      const submissions = await executeWithRetry(
-        'SELECT id, task_id, code, language, score, submitted_at FROM submissions WHERE user_id = $1',
-        [userId]
-      );
+          const submissions = await executeSQLString(
+      'SELECT id, task_id, code, language, score, submitted_at FROM submissions WHERE user_id = $1',
+      [userId]
+    );
 
-      const auditLogs = await executeWithRetry(
-        'SELECT action, resource_type, resource_id, details, timestamp FROM audit_logs WHERE user_id = $1',
-        [userId]
-      );
+    const auditLogs = await executeSQLString(
+      'SELECT action, resource_type, resource_id, details, timestamp FROM audit_logs WHERE user_id = $1',
+      [userId]
+    );
 
       return {
         user: userData.rows[0],
@@ -33,19 +33,19 @@ export class GDPRService {
 
   static async deleteUserData(userId: string): Promise<void> {
     try {
-      await executeWithRetry('BEGIN');
-      await executeWithRetry('DELETE FROM submissions WHERE user_id = $1', [
+      await executeSQLString('BEGIN');
+      await executeSQLString('DELETE FROM submissions WHERE user_id = $1', [
         userId,
       ]);
-      await executeWithRetry('DELETE FROM audit_logs WHERE user_id = $1', [
+      await executeSQLString('DELETE FROM audit_logs WHERE user_id = $1', [
         userId,
       ]);
-      await executeWithRetry('DELETE FROM users WHERE id = $1', [userId]);
-      await executeWithRetry('COMMIT');
+      await executeSQLString('DELETE FROM users WHERE id = $1', [userId]);
+      await executeSQLString('COMMIT');
 
       logger.info(`User data deleted for user: ${userId}`);
     } catch (error) {
-      await executeWithRetry('ROLLBACK');
+      await executeSQLString('ROLLBACK');
       logger.error('Failed to delete user data:', error);
       throw error;
     }

@@ -5,6 +5,11 @@ import logger from '../utils/logger';
 export interface User {
   id: string;
   email: string;
+  name: string;
+  rank: string;
+  rankLevel: string;
+  username: string;
+  permissions: string[];
   points: number;
   created_at: string;
 }
