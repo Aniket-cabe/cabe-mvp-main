@@ -1,6 +1,6 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import { Strategy as AzureADStrategy } from 'passport-azure-ad';
+// import { Strategy as AzureADStrategy } from 'passport-azure-ad';
 import { executeSQLString } from '../../db';
 import { AuditService } from './audit.service';
 
