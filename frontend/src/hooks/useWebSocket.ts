@@ -17,7 +17,12 @@ export interface WebSocketEvent {
 }
 
 export interface WebSocketHandlers {
-  [key in EventType]?: (data: any) => void;
+  submissionReviewed?: (data: any) => void;
+  badgeUnlocked?: (data: any) => void;
+  chatMessage?: (data: any) => void;
+  taskAssigned?: (data: any) => void;
+  pointsUpdated?: (data: any) => void;
+  rankChanged?: (data: any) => void;
 }
 
 interface UseWebSocketOptions {
@@ -105,7 +110,7 @@ export function useWebSocket({
           console.log('📨 WebSocket message received:', message);
 
           // Handle the event based on type
-          const handler = handlers[message.type];
+          const handler = (handlers as any)[message.type];
           if (handler) {
             handler(message.data);
           } else {

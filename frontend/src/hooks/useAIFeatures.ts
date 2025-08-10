@@ -1,49 +1,15 @@
-import { useCallback, useState } from 'react';
+import { useState, useCallback } from 'react';
+import { toast } from 'react-hot-toast';
 
 export interface Suggestion {
   line: number;
   message: string;
 }
+
 export interface SuggestResponse {
   suggestions: Suggestion[];
   language: string;
 }
-
-export function useAIFeatures(baseUrl: string = '/api/ai') {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-
-  const getSuggestions = useCallback(
-    async (code: string, language: string) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`${baseUrl}/suggest`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, language }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data: SuggestResponse = await res.json();
-        setSuggestions(data.suggestions || []);
-        return data.suggestions || [];
-      } catch (e: any) {
-        setError(e.message || 'Failed to fetch suggestions');
-        return [] as Suggestion[];
-      } finally {
-        setLoading(false);
-      }
-    },
-    [baseUrl]
-  );
-
-  return { loading, error, suggestions, getSuggestions };
-}
-
-export default useAIFeatures;
-import { useState, useCallback } from 'react';
-import { toast } from 'react-hot-toast';
 
 interface PlagiarismReport {
   similarity: number;
@@ -71,6 +37,7 @@ interface LearningPath {
   estimatedTime: number;
   skills: string[];
   reason: string;
+  tags?: string[];
 }
 
 interface CodeSuggestion {
@@ -83,7 +50,7 @@ interface CodeSuggestion {
 interface AIFeaturesState {
   plagiarism: {
     loading: boolean;
-    report: PlagiarismReport | null;
+    result: PlagiarismReport | null;
     error: string | null;
   };
   learningPaths: {
@@ -98,9 +65,9 @@ interface AIFeaturesState {
   };
 }
 
-export const useAIFeatures = () => {
+export const useAIFeatures = (baseUrl: string = '/api/ai') => {
   const [state, setState] = useState<AIFeaturesState>({
-    plagiarism: { loading: false, report: null, error: null },
+    plagiarism: { loading: false, result: null, error: null },
     learningPaths: { loading: false, paths: [], error: null },
     suggestions: { loading: false, suggestions: [], error: null },
   });
@@ -113,7 +80,7 @@ export const useAIFeatures = () => {
       }));
 
       try {
-        const response = await fetch('/api/ai/plagiarism', {
+        const response = await fetch(`${baseUrl}/plagiarism`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code, language }),
@@ -127,7 +94,7 @@ export const useAIFeatures = () => {
 
         setState((prev) => ({
           ...prev,
-          plagiarism: { loading: false, report, error: null },
+          plagiarism: { loading: false, result: report, error: null },
         }));
 
         // Show appropriate toast based on similarity
@@ -147,50 +114,57 @@ export const useAIFeatures = () => {
           error instanceof Error ? error.message : 'Unknown error';
         setState((prev) => ({
           ...prev,
-          plagiarism: { loading: false, report: null, error: errorMessage },
+          plagiarism: { loading: false, result: null, error: errorMessage },
         }));
         toast.error('Failed to detect plagiarism. Please try again.');
         throw error;
       }
     },
-    []
+    [baseUrl]
   );
 
-  const generateLearningPaths = useCallback(async (userId: string) => {
-    setState((prev) => ({
-      ...prev,
-      learningPaths: { ...prev.learningPaths, loading: true, error: null },
-    }));
+  const generateLearningPaths = useCallback(
+    async (code: string, language: string) => {
+      setState((prev) => ({
+        ...prev,
+        learningPaths: { ...prev.learningPaths, loading: true, error: null },
+      }));
 
-    try {
-      const response = await fetch(`/api/ai/learning-paths?userId=${userId}`);
+      try {
+        const response = await fetch(`${baseUrl}/learning-paths`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, language }),
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to generate learning paths');
+        if (!response.ok) {
+          throw new Error('Failed to generate learning paths');
+        }
+
+        const paths: LearningPath[] = await response.json();
+
+        setState((prev) => ({
+          ...prev,
+          learningPaths: { loading: false, paths, error: null },
+        }));
+
+        toast.success(
+          `🎯 Generated ${paths.length} personalized learning paths for you!`
+        );
+        return paths;
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error';
+        setState((prev) => ({
+          ...prev,
+          learningPaths: { loading: false, paths: [], error: errorMessage },
+        }));
+        toast.error('Failed to generate learning paths. Please try again.');
+        throw error;
       }
-
-      const paths: LearningPath[] = await response.json();
-
-      setState((prev) => ({
-        ...prev,
-        learningPaths: { loading: false, paths, error: null },
-      }));
-
-      toast.success(
-        `🎯 Generated ${paths.length} personalized learning paths for you!`
-      );
-      return paths;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      setState((prev) => ({
-        ...prev,
-        learningPaths: { loading: false, paths: [], error: errorMessage },
-      }));
-      toast.error('Failed to generate learning paths. Please try again.');
-      throw error;
-    }
-  }, []);
+    },
+    [baseUrl]
+  );
 
   const getCodeSuggestions = useCallback(
     async (code: string, language: string) => {
@@ -200,7 +174,7 @@ export const useAIFeatures = () => {
       }));
 
       try {
-        const response = await fetch('/api/ai/suggest', {
+        const response = await fetch(`${baseUrl}/suggest`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code, language }),
@@ -222,7 +196,7 @@ export const useAIFeatures = () => {
             `💡 Found ${suggestions.length} code suggestions for you!`
           );
         } else {
-          toast.info('✨ Your code looks great! No suggestions needed.');
+          toast.success('✨ Your code looks great! No suggestions needed.');
         }
 
         return suggestions;
@@ -237,13 +211,13 @@ export const useAIFeatures = () => {
         throw error;
       }
     },
-    []
+    [baseUrl]
   );
 
   const clearPlagiarismReport = useCallback(() => {
     setState((prev) => ({
       ...prev,
-      plagiarism: { loading: false, report: null, error: null },
+      plagiarism: { loading: false, result: null, error: null },
     }));
   }, []);
 
@@ -263,37 +237,13 @@ export const useAIFeatures = () => {
 
   const getPlagiarismMessage = useCallback((report: PlagiarismReport) => {
     if (report.similarity > 0.8) {
-      return {
-        type: 'error' as const,
-        title: '🚨 High Similarity Detected',
-        message:
-          'Your code shows very high similarity to existing submissions. Please review and ensure originality.',
-        color: 'text-red-600',
-      };
+      return '🚨 High similarity detected! Your code shows very high similarity to existing submissions.';
     } else if (report.similarity > 0.6) {
-      return {
-        type: 'warning' as const,
-        title: '⚠️ Moderate Similarity',
-        message:
-          'Some similarities found. Consider making your code more unique while maintaining functionality.',
-        color: 'text-yellow-600',
-      };
+      return '⚠️ Moderate similarity found. Consider making your code more unique while maintaining functionality.';
     } else if (report.similarity > 0.3) {
-      return {
-        type: 'info' as const,
-        title: 'ℹ️ Minor Similarities',
-        message:
-          'Minor similarities detected, likely due to common patterns. Your code looks good!',
-        color: 'text-blue-600',
-      };
+      return 'ℹ️ Minor similarities detected, likely due to common patterns. Your code looks good!';
     } else {
-      return {
-        type: 'success' as const,
-        title: '✅ Original Work',
-        message:
-          'Great job! Your code shows excellent originality and understanding.',
-        color: 'text-green-600',
-      };
+      return '✅ Great job! Your code shows excellent originality and understanding.';
     }
   }, []);
 
@@ -313,3 +263,5 @@ export const useAIFeatures = () => {
     getPlagiarismMessage,
   };
 };
+
+export default useAIFeatures;
