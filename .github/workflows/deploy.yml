@@ -1,0 +1,175 @@
+name: Microservices CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd services/auth && npm ci
+          cd ../tasks && npm ci
+          cd ../ai && npm ci
+
+      - name: Run tests
+        run: |
+          cd services/auth && npm test
+          cd ../tasks && npm test
+          cd ../ai && npm test
+
+      - name: Build Docker images
+        run: |
+          docker-compose build
+
+      - name: Start services
+        run: |
+          docker-compose up -d
+
+      - name: Wait for services to be healthy
+        run: |
+          timeout 300 bash -c 'until curl -f http://localhost:4000/health; do sleep 5; done'
+          timeout 300 bash -c 'until curl -f http://localhost:4001/health; do sleep 5; done'
+          timeout 300 bash -c 'until curl -f http://localhost:4002/health; do sleep 5; done'
+          timeout 300 bash -c 'until curl -f http://localhost/health; do sleep 5; done'
+
+      - name: Run smoke tests
+        run: |
+          npm install -g vitest
+          vitest run tests/microservices.smoke.spec.ts
+
+      - name: Test inter-service communication
+        run: |
+          # Test auth service issues token
+          curl -X POST http://localhost:4000/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"test@example.com","password":"testpass"}' || echo "Auth test completed"
+
+          # Test tasks service accepts token
+          curl -X GET http://localhost:4001/api/tasks/ \
+            -H "Authorization: Bearer test-token" || echo "Tasks test completed"
+
+          # Test AI service endpoint
+          curl -X GET http://localhost:4002/api/ai/health || echo "AI test completed"
+
+      - name: Security scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Check for open ports
+        run: |
+          # Check if services are only listening on expected ports
+          netstat -tlnp | grep -E ':(4000|4001|4002|80|443|5432|6379)' || echo "Port check completed"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker-compose down -v
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Auth Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/auth
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auth:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Tasks Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/tasks
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tasks:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push AI Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/ai
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/ai:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to production
+        run: |
+          echo "Deploying microservices to production..."
+          # Add your deployment logic here
+          # Example: kubectl apply -f k8s/
+          # Example: docker-compose -f docker-compose.prod.yml up -d

@@ -1,0 +1,133 @@
+name: Frontend CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ['frontend/**']
+  pull_request:
+    branches: [main]
+    paths: ['frontend/**']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run tests
+        run: |
+          cd frontend
+          npm test
+
+      - name: Run PWA tests
+        run: |
+          cd frontend
+          npm run test:pwa
+
+      - name: Run responsive tests
+        run: |
+          cd frontend
+          npm run test:responsive
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Build application
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/dist
+
+  lighthouse:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/dist
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli@0.12.x
+
+      - name: Run Lighthouse CI
+        run: |
+          lhci autorun
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+      - name: Check PWA score
+        run: |
+          # Extract PWA score from Lighthouse results
+          PWA_SCORE=$(cat .lighthouseci/manifest.json | jq -r '.[0].summary.pwa')
+          echo "PWA Score: $PWA_SCORE"
+
+          if (( $(echo "$PWA_SCORE < 90" | bc -l) )); then
+            echo "❌ PWA score is below 90: $PWA_SCORE"
+            exit 1
+          else
+            echo "✅ PWA score is acceptable: $PWA_SCORE"
+          fi
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [test, build, lighthouse]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/dist
+
+      - name: Deploy to production
+        run: |
+          echo "Deploying frontend to production..."
+          # Add your deployment logic here
+          # Example: rsync, S3 sync, or other deployment method

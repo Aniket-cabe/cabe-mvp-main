@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for analytics components */
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.heatmap-week {
+  display: grid;
+  grid-template-rows: repeat(53, 12px);
+  gap: 2px;
+}

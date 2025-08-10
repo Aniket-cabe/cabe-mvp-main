@@ -1,0 +1,24 @@
+{
+  "saml": {
+    "enabled": false,
+    "entryPoint": "",
+    "issuer": "",
+    "cert": "",
+    "privateKey": ""
+  },
+  "oauth": {
+    "google": {
+      "enabled": false,
+      "clientId": "",
+      "clientSecret": "",
+      "callbackUrl": ""
+    },
+    "azure": {
+      "enabled": false,
+      "clientId": "",
+      "clientSecret": "",
+      "tenantId": "",
+      "callbackUrl": ""
+    }
+  }
+}

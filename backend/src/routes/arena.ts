@@ -1,0 +1,7854 @@
+import express from 'express';
+import { getTasks, getUsers, createSubmission } from '../lib/supabase-utils';
+import { supabaseAdmin } from '../lib/supabase-admin';
+import { getDetailedScore } from '../utils/ai-score-utils';
+import { calculateTaskPoints, Task } from '../lib/points';
+import {
+  attachUserRank,
+  requireRank,
+  logRankInfo,
+} from '../middleware/rankMiddleware';
+import {
+  getFeaturesForRank,
+  getNextRankFeatures,
+  getFeatureAccessInfo,
+  isValidFeature,
+  getMinimumRankForFeature,
+} from '../utils/feature-access';
+import { getArenaAccessInfo } from '../utils/arena-access';
+import logger from '../utils/logger';
+import { env, envWithHelpers } from '../config/env';
+import { RANK_TIERS } from '../middleware/rankMiddleware';
+
+const router = express.Router();
+
+// GET /api/arena/tasks - Fetch active Arena tasks with optional filters and pagination
+router.get('/tasks', async (req, res) => {
+  try {
+    const { limit = 20, offset = 0, skill } = req.query;
+
+    logger.info('📋 Fetching active Arena tasks', {
+      limit: parseInt(limit as string),
+      offset: parseInt(offset as string),
+      skillFilter: skill || 'none',
+    });
+
+    // Validate query parameters
+    const limitNum = parseInt(limit as string);
+    const offsetNum = parseInt(offset as string);
+
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 50) {
+      logger.warn('❌ Invalid limit parameter for tasks', { limit });
+      return res.status(400).json({
+        success: false,
+        error: 'Limit must be a number between 1 and 50',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (isNaN(offsetNum) || offsetNum < 0) {
+      logger.warn('❌ Invalid offset parameter for tasks', { offset });
+      return res.status(400).json({
+        success: false,
+        error: 'Offset must be a non-negative number',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Build the query for active tasks
+    let query = supabaseAdmin
+      .from('tasks')
+      .select('*')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .range(offsetNum, offsetNum + limitNum - 1);
+
+    // Apply skill filter if provided
+    if (skill) {
+      logger.info('🎯 Applying skill filter to tasks', { skill });
+      query = query.eq('skill_area', skill);
+    }
+
+    const { data: tasksData, error: tasksError } = await query;
+
+    if (tasksError) {
+      logger.error('❌ Failed to fetch tasks:', {
+        error: tasksError?.message,
+        skillFilter: skill || 'none',
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch tasks',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Get total count for pagination
+    let totalCount = 0;
+    if (skill) {
+      // Count active tasks with the specified skill area
+      const { count, error: countError } = await supabaseAdmin
+        .from('tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true)
+        .eq('skill_area', skill);
+
+      if (!countError) {
+        totalCount = count || 0;
+      }
+    } else {
+      // Count all active tasks
+      const { count, error: countError } = await supabaseAdmin
+        .from('tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true);
+
+      if (!countError) {
+        totalCount = count || 0;
+      }
+    }
+
+    // Calculate pagination metadata
+    const hasNextPage = offsetNum + limitNum < totalCount;
+
+    logger.info('✅ Successfully fetched active tasks', {
+      totalTasks: tasksData?.length || 0,
+      totalCount,
+      skillFilter: skill || 'none',
+      limit: limitNum,
+      offset: offsetNum,
+      hasNextPage,
+    });
+
+    res.json({
+      success: true,
+      message: 'Active tasks fetched successfully',
+      tasks: tasksData || [],
+      pagination: {
+        limit: limitNum,
+        offset: offsetNum,
+        total: totalCount,
+        hasNextPage,
+      },
+      filters: {
+        skill: skill || null,
+      },
+      metadata: {
+        calculatedAt: new Date().toISOString(),
+        skillFilter: skill || 'none',
+        dataPoints: {
+          tasks: tasksData?.length || 0,
+          totalTasks: totalCount,
+        },
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena tasks endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment ? errorMessage : 'Failed to fetch tasks',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/users - Fetch all users
+router.get('/users', async (req, res) => {
+  try {
+    logger.info('👥 Fetching all users from arena API');
+
+    const result = await getUsers();
+
+    if (result.success) {
+      logger.info(`✅ Successfully fetched ${result.data?.length || 0} users`);
+      res.json({
+        success: true,
+        message: 'Users fetched successfully',
+        count: result.data?.length || 0,
+        users: result.data,
+        timestamp: new Date().toISOString(),
+      });
+    } else {
+      logger.error('❌ Failed to fetch users:', result.error);
+      res.status(500).json({
+        success: false,
+        error: result.error,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena users endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment ? errorMessage : 'Failed to fetch users',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/submissions - Fetch user's own submissions with optional filters and pagination
+router.get('/submissions', async (req, res) => {
+  try {
+    const { limit = 20, offset = 0, status, skill } = req.query;
+
+    // TODO: In production, extract user_id from JWT token
+    // For now, we'll use a hardcoded user_id or get it from query params
+    const user_id = (req.query.user_id as string) || 'default-user-uuid';
+
+    logger.info('📝 Fetching user submissions', {
+      user_id,
+      limit: parseInt(limit as string),
+      offset: parseInt(offset as string),
+      statusFilter: status || 'none',
+      skillFilter: skill || 'none',
+    });
+
+    // Validate query parameters
+    const limitNum = parseInt(limit as string);
+    const offsetNum = parseInt(offset as string);
+
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 50) {
+      logger.warn('❌ Invalid limit parameter for submissions', { limit });
+      return res.status(400).json({
+        success: false,
+        error: 'Limit must be a number between 1 and 50',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (isNaN(offsetNum) || offsetNum < 0) {
+      logger.warn('❌ Invalid offset parameter for submissions', { offset });
+      return res.status(400).json({
+        success: false,
+        error: 'Offset must be a non-negative number',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate status filter if provided
+    const validStatuses = ['pending', 'scored', 'flagged', 'deleted'];
+    if (status && !validStatuses.includes(status as string)) {
+      logger.warn('❌ Invalid status filter for submissions', { status });
+      return res.status(400).json({
+        success: false,
+        error: 'Status must be one of: pending, scored, flagged, deleted',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate skill filter if provided
+    const validSkills = [
+      'frontend',
+      'backend',
+      'database',
+      'algorithm',
+      'system',
+    ];
+    if (skill && !validSkills.includes(skill as string)) {
+      logger.warn('❌ Invalid skill filter for submissions', { skill });
+      return res.status(400).json({
+        success: false,
+        error:
+          'Skill must be one of: frontend, backend, database, algorithm, system',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Build the query for user's submissions
+    let query = supabaseAdmin
+      .from('submissions')
+      .select(
+        `
+        *,
+        tasks!submissions_task_id_fkey (
+          id,
+          title,
+          description,
+          skill_area,
+          created_at
+        )
+      `
+      )
+      .eq('user_id', user_id)
+      .order('submitted_at', { ascending: false })
+      .range(offsetNum, offsetNum + limitNum - 1);
+
+    // Apply status filter if provided
+    if (status) {
+      logger.info('🎯 Applying status filter to submissions', { status });
+      if (status === 'deleted') {
+        // For deleted status, check if deleted_at is not null
+        query = query.not('deleted_at', 'is', null);
+      } else {
+        // For other statuses, check the status field and ensure deleted_at is null
+        query = query.eq('status', status).is('deleted_at', null);
+      }
+    } else {
+      // If no status filter, exclude soft-deleted submissions by default
+      query = query.is('deleted_at', null);
+    }
+
+    // Apply skill filter if provided
+    if (skill) {
+      logger.info('🎯 Applying skill filter to submissions', { skill });
+      query = query.eq('tasks.skill_area', skill);
+    }
+
+    const { data: submissionsData, error: submissionsError } = await query;
+
+    if (submissionsError) {
+      logger.error('❌ Failed to fetch user submissions:', {
+        user_id,
+        error: submissionsError?.message,
+        statusFilter: status || 'none',
+        skillFilter: skill || 'none',
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch user submissions',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Add review flag status indicators to each submission
+    const submissionsWithFlags =
+      submissionsData?.map((submission) => ({
+        ...submission,
+        isFlagged: submission.status === 'flagged',
+        flaggedReason:
+          submission.status === 'flagged' ? submission.flagged_reason : null,
+        flaggedAt:
+          submission.status === 'flagged' ? submission.flagged_at : null,
+      })) || [];
+
+    // Get total count for pagination
+    let totalCount = 0;
+    let countQuery = supabaseAdmin
+      .from('submissions')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user_id);
+
+    // Apply same filters to count query
+    if (status) {
+      if (status === 'deleted') {
+        countQuery = countQuery.not('deleted_at', 'is', null);
+      } else {
+        countQuery = countQuery.eq('status', status).is('deleted_at', null);
+      }
+    } else {
+      countQuery = countQuery.is('deleted_at', null);
+    }
+
+    if (skill) {
+      countQuery = countQuery.eq('tasks.skill_area', skill);
+    }
+
+    const { count, error: countError } = await countQuery;
+
+    if (!countError) {
+      totalCount = count || 0;
+    }
+
+    // Calculate pagination metadata
+    const hasNextPage = offsetNum + limitNum < totalCount;
+
+    logger.info('✅ Successfully fetched user submissions', {
+      user_id,
+      totalSubmissions: submissionsWithFlags.length,
+      totalCount,
+      statusFilter: status || 'none',
+      skillFilter: skill || 'none',
+      limit: limitNum,
+      offset: offsetNum,
+      hasNextPage,
+    });
+
+    res.json({
+      success: true,
+      message: 'User submissions fetched successfully',
+      submissions: submissionsWithFlags,
+      pagination: {
+        limit: limitNum,
+        offset: offsetNum,
+        total: totalCount,
+        hasNextPage,
+      },
+      filters: {
+        status: status || null,
+        skill: skill || null,
+      },
+      metadata: {
+        calculatedAt: new Date().toISOString(),
+        user_id,
+        statusFilter: status || 'none',
+        skillFilter: skill || 'none',
+        dataPoints: {
+          submissions: submissionsWithFlags.length,
+          totalSubmissions: totalCount,
+        },
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena user submissions endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to fetch user submissions',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// POST /api/arena/submit - Submit a task
+router.post('/submit', async (req, res) => {
+  try {
+    const { user_id, task_id, description, proof } = req.body;
+
+    logger.info('📝 Processing task submission', {
+      user_id,
+      task_id,
+      hasDescription: !!description,
+      hasProof: !!proof,
+    });
+
+    // Validate required fields
+    if (!user_id || !task_id || !proof) {
+      logger.warn('❌ Missing required fields for submission', {
+        user_id: !!user_id,
+        task_id: !!task_id,
+        proof: !!proof,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'user_id, task_id, and proof are required',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Check if user exists
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('id, email')
+      .eq('id', user_id)
+      .single();
+
+    if (userError || !userData) {
+      logger.error('❌ User not found for submission:', {
+        user_id,
+        error: userError?.message,
+      });
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Check if task exists
+    const { data: taskData, error: taskError } = await supabaseAdmin
+      .from('tasks')
+      .select('id, title, skill_area')
+      .eq('id', task_id)
+      .single();
+
+    if (taskError || !taskData) {
+      logger.error('❌ Task not found for submission:', {
+        task_id,
+        error: taskError?.message,
+      });
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Check if submission already exists for this user and task
+    const { data: existingSubmission, error: checkError } = await supabaseAdmin
+      .from('submissions')
+      .select('id, status')
+      .eq('user_id', user_id)
+      .eq('task_id', task_id)
+      .single();
+
+    if (existingSubmission) {
+      logger.warn('⚠️ Submission already exists for user and task:', {
+        user_id,
+        task_id,
+        existingStatus: existingSubmission.status,
+      });
+      return res.status(409).json({
+        success: false,
+        error: 'Submission already exists for this user and task',
+        submissionId: existingSubmission.id,
+        status: existingSubmission.status,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Create new submission
+    const submissionData = {
+      user_id,
+      task_id,
+      status: 'pending',
+      score: null,
+      description: description || null,
+      proof,
+    };
+
+    const { data: newSubmission, error: createError } = await supabaseAdmin
+      .from('submissions')
+      .insert(submissionData)
+      .select('id, user_id, task_id, status, submitted_at')
+      .single();
+
+    if (createError || !newSubmission) {
+      logger.error('❌ Failed to create submission:', {
+        error: createError?.message,
+        submissionData,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to create submission',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('✅ Task submission created successfully:', {
+      submissionId: newSubmission.id,
+      userId: userData.email,
+      taskTitle: taskData.title,
+      skillArea: taskData.skill_area,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Task submission created successfully',
+      submission: {
+        id: newSubmission.id,
+        user_id: newSubmission.user_id,
+        task_id: newSubmission.task_id,
+        status: newSubmission.status,
+        submitted_at: newSubmission.submitted_at,
+      },
+      user: {
+        id: userData.id,
+        email: userData.email,
+      },
+      task: {
+        id: taskData.id,
+        title: taskData.title,
+        skill_area: taskData.skill_area,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena submit endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment ? errorMessage : 'Failed to create submission',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// POST /api/arena/auto-score - Auto-score a submission using AI
+router.post('/auto-score', async (req, res) => {
+  try {
+    const { submission_id } = req.body;
+
+    logger.info('🤖 Starting AI auto-scoring for submission', {
+      submission_id,
+    });
+
+    // Validate required fields
+    if (!submission_id) {
+      logger.warn('❌ Missing submission_id for auto-scoring');
+      return res.status(400).json({
+        success: false,
+        error: 'submission_id is required',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Fetch submission with related data
+    const { data: submissionData, error: submissionError } = await supabaseAdmin
+      .from('submissions')
+      .select(
+        `
+        *,
+        users!submissions_user_id_fkey (
+          id,
+          email,
+          points,
+          created_at
+        ),
+        tasks!submissions_task_id_fkey (
+          id,
+          title,
+          description,
+          skill_area,
+          created_at
+        )
+      `
+      )
+      .eq('id', submission_id)
+      .single();
+
+    if (submissionError || !submissionData) {
+      logger.error('❌ Submission not found for auto-scoring:', {
+        submission_id,
+        error: submissionError?.message,
+      });
+      return res.status(404).json({
+        success: false,
+        error: 'Submission not found',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Check if submission is already scored
+    if (submissionData.status === 'scored') {
+      logger.warn('⚠️ Submission already scored:', {
+        submission_id,
+        currentScore: submissionData.score,
+        currentStatus: submissionData.status,
+      });
+      return res.status(409).json({
+        success: false,
+        error: 'Submission already scored',
+        currentScore: submissionData.score,
+        currentStatus: submissionData.status,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Extract task title and user code (proof)
+    const taskTitle = submissionData.tasks?.title;
+    const userCode = submissionData.proof;
+
+    if (!taskTitle || !userCode) {
+      logger.error('❌ Missing task title or user code for AI scoring:', {
+        submission_id,
+        hasTaskTitle: !!taskTitle,
+        hasUserCode: !!userCode,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Submission missing task title or user code',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('📊 Getting AI detailed score', {
+      submission_id,
+      taskTitle,
+      codeLength: userCode.length,
+    });
+
+    // Get AI detailed score
+    const detailedScore = await getDetailedScore(taskTitle, userCode);
+    const { score, breakdown, feedback } = detailedScore;
+
+    logger.info('✅ AI scoring completed', {
+      submission_id,
+      score,
+      breakdown: breakdown.substring(0, 50) + '...',
+    });
+
+    // Validate task data for CaBE v5 points calculation
+    const task = submissionData.tasks;
+    if (!task) {
+      logger.error('❌ Task data missing for CaBE v5 points calculation:', {
+        submission_id,
+        taskId: submissionData.task_id,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Task data missing for points calculation',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Check if task has required CaBE v5 factors
+    const requiredFactors = [
+      'duration',
+      'skill',
+      'complexity',
+      'visibility',
+      'professional_impact',
+      'autonomy',
+    ];
+    const missingFactors = requiredFactors.filter(
+      (factor) =>
+        task[factor as keyof typeof task] === undefined ||
+        task[factor as keyof typeof task] === null
+    );
+
+    if (missingFactors.length > 0) {
+      logger.error('❌ Task missing required CaBE v5 factors:', {
+        submission_id,
+        taskId: task.id,
+        missingFactors,
+      });
+      return res.status(400).json({
+        success: false,
+        error: `Task missing required CaBE v5 factors: ${missingFactors.join(', ')}`,
+        missingFactors,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Calculate points using CaBE v5 formula
+    let pointsAwarded: number;
+    let pointsBreakdown: any = null;
+
+    try {
+      const taskForCalculation: Task = {
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        skill_area: task.skill_area,
+        duration: task.duration,
+        skill: task.skill,
+        complexity: task.complexity,
+        visibility: task.visibility,
+        professional_impact: task.professional_impact,
+        autonomy: task.autonomy,
+        created_at: task.created_at,
+        is_active: task.is_active,
+      };
+
+      const pointsResult = calculateTaskPoints(score, taskForCalculation, true);
+      pointsAwarded = pointsResult.pointsAwarded;
+      pointsBreakdown = pointsResult.breakdown;
+
+      logger.info('✅ CaBE v5 points calculated successfully:', {
+        submission_id,
+        aiScore: score,
+        pointsAwarded,
+        taskId: task.id,
+        taskTitle: task.title,
+      });
+    } catch (pointsError) {
+      logger.error('❌ Failed to calculate CaBE v5 points:', {
+        submission_id,
+        score,
+        taskId: task.id,
+        error:
+          pointsError instanceof Error ? pointsError.message : 'Unknown error',
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to calculate points using CaBE v5 formula',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const userId = submissionData.user_id;
+    const currentUserPoints = submissionData.users?.points || 0;
+    const newUserPoints = currentUserPoints + pointsAwarded;
+
+    // Update submission with AI score and points breakdown
+    const { data: updatedSubmission, error: updateSubmissionError } =
+      await supabaseAdmin
+        .from('submissions')
+        .update({
+          status: 'scored',
+          score,
+          breakdown: breakdown || null,
+          feedback: feedback || null,
+          points_breakdown: pointsBreakdown
+            ? JSON.stringify(pointsBreakdown)
+            : null,
+        })
+        .eq('id', submission_id)
+        .select('*')
+        .single();
+
+    if (updateSubmissionError || !updatedSubmission) {
+      logger.error('❌ Failed to update submission with AI score:', {
+        submission_id,
+        error: updateSubmissionError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to update submission',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Update user points with CaBE v5 calculated points
+    const { data: updatedUser, error: updateUserError } = await supabaseAdmin
+      .from('users')
+      .update({
+        points: newUserPoints,
+      })
+      .eq('id', userId)
+      .select('id, email, points, created_at')
+      .single();
+
+    if (updateUserError || !updatedUser) {
+      logger.error('❌ Failed to update user points:', {
+        userId,
+        error: updateUserError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to update user points',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Update leaderboard table to keep it in sync with user points
+    try {
+      const currentTime = new Date().toISOString();
+
+      const { data: leaderboardData, error: leaderboardError } =
+        await supabaseAdmin
+          .from('leaderboard')
+          .upsert(
+            {
+              user_id: userId,
+              points: updatedUser.points,
+              last_updated: currentTime,
+            },
+            {
+              onConflict: 'user_id',
+            }
+          )
+          .select('user_id, points, last_updated')
+          .single();
+
+      if (leaderboardError) {
+        logger.error('❌ Failed to update leaderboard table:', {
+          userId,
+          points: updatedUser.points,
+          error: leaderboardError?.message,
+        });
+        // Don't block the response, just log the error
+      } else {
+        logger.info('✅ Leaderboard table updated successfully:', {
+          userId,
+          previousPoints: currentUserPoints,
+          newPoints: updatedUser.points,
+          pointsAdded: pointsAwarded,
+          leaderboardUpdated: leaderboardData?.last_updated,
+        });
+      }
+    } catch (leaderboardSyncError) {
+      logger.error('❌ Exception while updating leaderboard table:', {
+        userId,
+        points: updatedUser.points,
+        error:
+          leaderboardSyncError instanceof Error
+            ? leaderboardSyncError.message
+            : 'Unknown error',
+      });
+      // Don't block the response, just log the error
+    }
+
+    logger.info('✅ Auto-scoring completed successfully with CaBE v5 points:', {
+      submission_id,
+      userId: updatedUser.email,
+      aiScore: score,
+      pointsAwarded,
+      previousPoints: currentUserPoints,
+      newPoints: updatedUser.points,
+      taskTitle,
+    });
+
+    res.json({
+      success: true,
+      message:
+        'Submission auto-scored and user points updated using CaBE v5 formula',
+      submission: {
+        id: updatedSubmission.id,
+        user_id: updatedSubmission.user_id,
+        task_id: updatedSubmission.task_id,
+        status: updatedSubmission.status,
+        score: updatedSubmission.score,
+        breakdown: updatedSubmission.breakdown,
+        feedback: updatedSubmission.feedback,
+        points_breakdown: updatedSubmission.points_breakdown,
+        submitted_at: updatedSubmission.submitted_at,
+      },
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        points: updatedUser.points,
+        pointsAdded: pointsAwarded,
+        previousPoints: currentUserPoints,
+      },
+      task: {
+        id: submissionData.tasks?.id,
+        title: submissionData.tasks?.title,
+        description: submissionData.tasks?.description,
+        skill_area: submissionData.tasks?.skill_area,
+      },
+      detailedScore: {
+        score,
+        breakdown,
+        feedback,
+      },
+      caBEv5Points: {
+        aiScore: score,
+        pointsAwarded,
+        breakdown: pointsBreakdown,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena auto-score endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to auto-score submission',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// POST /api/arena/score - Score a submission and update user points
+router.post('/score', async (req, res) => {
+  try {
+    const { submission_id, score, status = 'scored' } = req.body;
+
+    logger.info('🏆 Processing submission scoring', {
+      submission_id,
+      score,
+      status,
+    });
+
+    // Validate required fields
+    if (!submission_id || score === undefined || score === null) {
+      logger.warn('❌ Missing required fields for scoring', {
+        submission_id: !!submission_id,
+        score: score !== undefined && score !== null,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'submission_id and score are required',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate score range
+    if (typeof score !== 'number' || score < 0 || score > 100) {
+      logger.warn('❌ Invalid score value', { score });
+      return res.status(400).json({
+        success: false,
+        error: 'Score must be a number between 0 and 100',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Fetch submission by ID
+    const { data: submissionData, error: submissionError } = await supabaseAdmin
+      .from('submissions')
+      .select(
+        `
+        *,
+        users!submissions_user_id_fkey (
+          id,
+          email,
+          points,
+          created_at
+        ),
+        tasks!submissions_task_id_fkey (
+          id,
+          title,
+          description,
+          skill_area,
+          created_at
+        )
+      `
+      )
+      .eq('id', submission_id)
+      .single();
+
+    if (submissionError || !submissionData) {
+      logger.error('❌ Submission not found for scoring:', {
+        submission_id,
+        error: submissionError?.message,
+      });
+      return res.status(404).json({
+        success: false,
+        error: 'Submission not found',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Check if submission is already scored
+    if (submissionData.status === 'scored') {
+      logger.warn('⚠️ Submission already scored:', {
+        submission_id,
+        currentScore: submissionData.score,
+        currentStatus: submissionData.status,
+      });
+      return res.status(409).json({
+        success: false,
+        error: 'Submission already scored',
+        currentScore: submissionData.score,
+        currentStatus: submissionData.status,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Check if submission is deleted
+    if (submissionData.deleted_at) {
+      logger.warn('⚠️ Cannot score deleted submission:', {
+        submission_id,
+        deletedAt: submissionData.deleted_at,
+        currentStatus: submissionData.status,
+      });
+      return res.status(409).json({
+        success: false,
+        error: 'Cannot score deleted submission',
+        deletedAt: submissionData.deleted_at,
+        currentStatus: submissionData.status,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const userId = submissionData.user_id;
+    const currentUserPoints = submissionData.users?.points || 0;
+    const newUserPoints = currentUserPoints + score;
+
+    logger.info('📊 Updating submission and user points', {
+      submission_id,
+      userId,
+      currentPoints: currentUserPoints,
+      scoreToAdd: score,
+      newTotalPoints: newUserPoints,
+    });
+
+    // Update submission status and score
+    const { data: updatedSubmission, error: updateSubmissionError } =
+      await supabaseAdmin
+        .from('submissions')
+        .update({
+          status,
+          score,
+        })
+        .eq('id', submission_id)
+        .select('*')
+        .single();
+
+    if (updateSubmissionError || !updatedSubmission) {
+      logger.error('❌ Failed to update submission:', {
+        submission_id,
+        error: updateSubmissionError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to update submission',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Update user points
+    const { data: updatedUser, error: updateUserError } = await supabaseAdmin
+      .from('users')
+      .update({
+        points: newUserPoints,
+      })
+      .eq('id', userId)
+      .select('id, email, points, created_at')
+      .single();
+
+    if (updateUserError || !updatedUser) {
+      logger.error('❌ Failed to update user points:', {
+        userId,
+        error: updateUserError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to update user points',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('✅ Submission scored and user points updated successfully:', {
+      submission_id,
+      userId: updatedUser.email,
+      score,
+      previousPoints: currentUserPoints,
+      newPoints: updatedUser.points,
+      taskTitle: submissionData.tasks?.title,
+    });
+
+    res.json({
+      success: true,
+      message: 'Submission scored and user points updated',
+      submission: {
+        id: updatedSubmission.id,
+        user_id: updatedSubmission.user_id,
+        task_id: updatedSubmission.task_id,
+        status: updatedSubmission.status,
+        score: updatedSubmission.score,
+        submitted_at: updatedSubmission.submitted_at,
+        edited_at: submissionData.edited_at,
+        flagged_at: submissionData.flagged_at,
+        flagged_reason: submissionData.flagged_reason,
+        deleted_at: submissionData.deleted_at,
+        reviewed_at: submissionData.reviewed_at,
+      },
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        points: updatedUser.points,
+        pointsAdded: score,
+        previousPoints: currentUserPoints,
+      },
+      task: {
+        id: submissionData.tasks?.id,
+        title: submissionData.tasks?.title,
+        skill_area: submissionData.tasks?.skill_area,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena score endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment ? errorMessage : 'Failed to score submission',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// POST /api/arena/review-flag - Flag a submission for manual review
+router.post('/review-flag', async (req, res) => {
+  try {
+    const { submission_id, reason } = req.body;
+
+    logger.info('🚩 Processing review flag request', {
+      submission_id,
+      hasReason: !!reason,
+      reason: reason || 'No reason provided',
+    });
+
+    // Validate required fields
+    if (!submission_id) {
+      logger.warn('❌ Missing submission_id for review flag');
+      return res.status(400).json({
+        success: false,
+        error: 'submission_id is required',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Fetch submission with related data
+    const { data: submissionData, error: submissionError } = await supabaseAdmin
+      .from('submissions')
+      .select(
+        `
+        *,
+        users!submissions_user_id_fkey (
+          id,
+          email,
+          points,
+          created_at
+        ),
+        tasks!submissions_task_id_fkey (
+          id,
+          title,
+          description,
+          skill_area,
+          created_at
+        )
+      `
+      )
+      .eq('id', submission_id)
+      .single();
+
+    if (submissionError || !submissionData) {
+      logger.error('❌ Submission not found for review flag:', {
+        submission_id,
+        error: submissionError?.message,
+      });
+      return res.status(404).json({
+        success: false,
+        error: 'Submission not found',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Check if submission is already flagged
+    if (submissionData.status === 'flagged') {
+      logger.warn('⚠️ Submission already flagged for review:', {
+        submission_id,
+        currentStatus: submissionData.status,
+        flaggedReason: submissionData.flagged_reason,
+      });
+      return res.status(409).json({
+        success: false,
+        error: 'Submission already flagged for review',
+        currentStatus: submissionData.status,
+        flaggedReason: submissionData.flagged_reason,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Check if submission is already scored
+    if (submissionData.status === 'scored') {
+      logger.warn('⚠️ Cannot flag already scored submission:', {
+        submission_id,
+        currentStatus: submissionData.status,
+        currentScore: submissionData.score,
+      });
+      return res.status(409).json({
+        success: false,
+        error: 'Cannot flag already scored submission',
+        currentStatus: submissionData.status,
+        currentScore: submissionData.score,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const defaultReason = reason || 'Manual review requested';
+    const flaggedAt = new Date().toISOString();
+
+    logger.info('📝 Flagging submission for manual review', {
+      submission_id,
+      userId: submissionData.users?.email,
+      taskTitle: submissionData.tasks?.title,
+      reason: defaultReason,
+      flaggedAt,
+    });
+
+    // Update submission with flag status
+    const { data: updatedSubmission, error: updateError } = await supabaseAdmin
+      .from('submissions')
+      .update({
+        status: 'flagged',
+        flagged_reason: defaultReason,
+        flagged_at: flaggedAt,
+      })
+      .eq('id', submission_id)
+      .select('*')
+      .single();
+
+    if (updateError || !updatedSubmission) {
+      logger.error('❌ Failed to flag submission for review:', {
+        submission_id,
+        error: updateError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to flag submission for review',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('✅ Submission flagged for manual review successfully:', {
+      submission_id,
+      userId: submissionData.users?.email,
+      taskTitle: submissionData.tasks?.title,
+      reason: defaultReason,
+      flaggedAt,
+    });
+
+    res.json({
+      success: true,
+      message: 'Submission flagged for manual review',
+      submission: {
+        id: updatedSubmission.id,
+        user_id: updatedSubmission.user_id,
+        task_id: updatedSubmission.task_id,
+        status: updatedSubmission.status,
+        flagged_reason: updatedSubmission.flagged_reason,
+        flagged_at: updatedSubmission.flagged_at,
+        submitted_at: updatedSubmission.submitted_at,
+      },
+      user: {
+        id: submissionData.users?.id,
+        email: submissionData.users?.email,
+        points: submissionData.users?.points,
+      },
+      task: {
+        id: submissionData.tasks?.id,
+        title: submissionData.tasks?.title,
+        description: submissionData.tasks?.description,
+        skill_area: submissionData.tasks?.skill_area,
+      },
+      flagDetails: {
+        reason: defaultReason,
+        flaggedAt,
+        previousStatus: submissionData.status,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena review-flag endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to flag submission for review',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// POST /api/arena/manual-score - Manually score a flagged submission
+router.post('/manual-score', async (req, res) => {
+  try {
+    const { submission_id, score, breakdown, feedback } = req.body;
+
+    logger.info('👨‍⚖️ Processing manual scoring request', {
+      submission_id,
+      score,
+      hasBreakdown: !!breakdown,
+      hasFeedback: !!feedback,
+    });
+
+    // Validate required fields
+    if (!submission_id || score === undefined || score === null) {
+      logger.warn('❌ Missing required fields for manual scoring', {
+        submission_id: !!submission_id,
+        score: score !== undefined && score !== null,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'submission_id and score are required',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate score range
+    if (typeof score !== 'number' || score < 0 || score > 100) {
+      logger.warn('❌ Invalid score value for manual scoring', { score });
+      return res.status(400).json({
+        success: false,
+        error: 'Score must be a number between 0 and 100',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Fetch submission with related data
+    const { data: submissionData, error: submissionError } = await supabaseAdmin
+      .from('submissions')
+      .select(
+        `
+        *,
+        users!submissions_user_id_fkey (
+          id,
+          email,
+          points,
+          created_at
+        ),
+        tasks!submissions_task_id_fkey (
+          id,
+          title,
+          description,
+          skill_area,
+          created_at
+        )
+      `
+      )
+      .eq('id', submission_id)
+      .single();
+
+    if (submissionError || !submissionData) {
+      logger.error('❌ Submission not found for manual scoring:', {
+        submission_id,
+        error: submissionError?.message,
+      });
+      return res.status(404).json({
+        success: false,
+        error: 'Submission not found',
+        submission_id,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Check if submission is flagged
+    if (submissionData.status !== 'flagged') {
+      logger.warn('⚠️ Cannot manually score non-flagged submission:', {
+        submission_id,
+        currentStatus: submissionData.status,
+        expectedStatus: 'flagged',
+      });
+      return res.status(409).json({
+        success: false,
+        error: 'Can only manually score flagged submissions',
+        currentStatus: submissionData.status,
+        expectedStatus: 'flagged',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Check if submission is already scored
+    if (submissionData.status === 'scored') {
+      logger.warn('⚠️ Submission already scored:', {
+        submission_id,
+        currentScore: submissionData.score,
+        currentStatus: submissionData.status,
+      });
+      return res.status(409).json({
+        success: false,
+        error: 'Submission already scored',
+        currentScore: submissionData.score,
+        currentStatus: submissionData.status,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const userId = submissionData.user_id;
+    const currentUserPoints = submissionData.users?.points || 0;
+    const newUserPoints = currentUserPoints + score;
+    const reviewedAt = new Date().toISOString();
+
+    logger.info('📊 Processing manual scoring update', {
+      submission_id,
+      userId: submissionData.users?.email,
+      currentPoints: currentUserPoints,
+      scoreToAdd: score,
+      newTotalPoints: newUserPoints,
+      taskTitle: submissionData.tasks?.title,
+    });
+
+    // Update submission with manual score
+    const { data: updatedSubmission, error: updateSubmissionError } =
+      await supabaseAdmin
+        .from('submissions')
+        .update({
+          status: 'scored',
+          score,
+          breakdown: breakdown || null,
+          feedback: feedback || null,
+          reviewed_at: reviewedAt,
+        })
+        .eq('id', submission_id)
+        .select('*')
+        .single();
+
+    if (updateSubmissionError || !updatedSubmission) {
+      logger.error('❌ Failed to update submission with manual score:', {
+        submission_id,
+        error: updateSubmissionError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to update submission',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Update user points
+    const { data: updatedUser, error: updateUserError } = await supabaseAdmin
+      .from('users')
+      .update({
+        points: newUserPoints,
+      })
+      .eq('id', userId)
+      .select('id, email, points, created_at')
+      .single();
+
+    if (updateUserError || !updatedUser) {
+      logger.error('❌ Failed to update user points:', {
+        userId,
+        error: updateUserError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to update user points',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('✅ Manual scoring completed successfully:', {
+      submission_id,
+      userId: updatedUser.email,
+      score,
+      previousPoints: currentUserPoints,
+      newPoints: updatedUser.points,
+      taskTitle: submissionData.tasks?.title,
+      hasBreakdown: !!breakdown,
+      hasFeedback: !!feedback,
+    });
+
+    res.json({
+      success: true,
+      message: 'Submission manually scored and user points updated',
+      submission: {
+        id: updatedSubmission.id,
+        user_id: updatedSubmission.user_id,
+        task_id: updatedSubmission.task_id,
+        status: updatedSubmission.status,
+        score: updatedSubmission.score,
+        breakdown: updatedSubmission.breakdown,
+        feedback: updatedSubmission.feedback,
+        flagged_reason: submissionData.flagged_reason,
+        flagged_at: submissionData.flagged_at,
+        reviewed_at: updatedSubmission.reviewed_at,
+        submitted_at: updatedSubmission.submitted_at,
+      },
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        points: updatedUser.points,
+        pointsAdded: score,
+        previousPoints: currentUserPoints,
+      },
+      task: {
+        id: submissionData.tasks?.id,
+        title: submissionData.tasks?.title,
+        description: submissionData.tasks?.description,
+        skill_area: submissionData.tasks?.skill_area,
+      },
+      reviewDetails: {
+        score,
+        breakdown: breakdown || null,
+        feedback: feedback || null,
+        reviewedAt,
+        previousStatus: 'flagged',
+        flagReason: submissionData.flagged_reason,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena manual-score endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to manually score submission',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/stats - Get arena statistics
+router.get('/stats', async (req, res) => {
+  try {
+    logger.info('📊 Fetching arena statistics');
+
+    // Fetch counts for all entities
+    const [tasksResult, usersResult, submissionsResult] = await Promise.all([
+      getTasks(),
+      getUsers(),
+      supabaseAdmin
+        .from('submissions')
+        .select('*', { count: 'exact', head: true }),
+    ]);
+
+    // Calculate statistics
+    const stats = {
+      tasks: {
+        total: tasksResult.success ? tasksResult.data?.length || 0 : 0,
+        bySkillArea: {} as Record<string, number>,
+      },
+      users: {
+        total: usersResult.success ? usersResult.data?.length || 0 : 0,
+        totalPoints: usersResult.success
+          ? usersResult.data?.reduce((sum, user) => sum + user.points, 0) || 0
+          : 0,
+      },
+      submissions: {
+        total: submissionsResult.count || 0,
+        pending: 0,
+        completed: 0,
+      },
+    };
+
+    // Calculate skill area distribution
+    if (tasksResult.success && tasksResult.data) {
+      tasksResult.data.forEach((task) => {
+        const skillArea = task.skill_area || 'Unknown';
+        stats.tasks.bySkillArea[skillArea] =
+          (stats.tasks.bySkillArea[skillArea] || 0) + 1;
+      });
+    }
+
+    // Calculate submission status distribution
+    if (submissionsResult.data) {
+      submissionsResult.data.forEach((submission) => {
+        if (submission.status === 'pending') {
+          stats.submissions.pending++;
+        } else {
+          stats.submissions.completed++;
+        }
+      });
+    }
+
+    logger.info('✅ Successfully fetched arena statistics');
+    res.json({
+      success: true,
+      message: 'Arena statistics fetched successfully',
+      stats,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena stats endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to fetch arena statistics',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/leaderboard - Fetch global leaderboard with optional filtering
+router.get('/leaderboard', async (req, res) => {
+  try {
+    const { skill_area, limit = 10, offset = 0 } = req.query;
+
+    logger.info('🏆 Fetching global leaderboard', {
+      skill_area: skill_area || 'all',
+      limit: parseInt(limit as string),
+      offset: parseInt(offset as string),
+    });
+
+    // Validate query parameters
+    const limitNum = parseInt(limit as string);
+    const offsetNum = parseInt(offset as string);
+
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+      logger.warn('❌ Invalid limit parameter');
+      return res.status(400).json({
+        success: false,
+        error: 'Limit must be a number between 1 and 100',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (isNaN(offsetNum) || offsetNum < 0) {
+      logger.warn('❌ Invalid offset parameter');
+      return res.status(400).json({
+        success: false,
+        error: 'Offset must be a non-negative number',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate skill area if provided
+    const validSkillAreas = [
+      'frontend',
+      'backend',
+      'database',
+      'algorithm',
+      'system',
+    ];
+    if (skill_area && !validSkillAreas.includes(skill_area as string)) {
+      logger.warn('❌ Invalid skill area parameter');
+      return res.status(400).json({
+        success: false,
+        error:
+          'Invalid skill area. Valid options: frontend, backend, database, algorithm, system',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Build the query based on skill area filter
+    let query = supabaseAdmin
+      .from('users')
+      .select(
+        `
+        id,
+        email,
+        points,
+        created_at,
+        submissions!submissions_user_id_fkey (
+          id,
+          score,
+          submitted_at,
+          tasks!submissions_task_id_fkey (
+            skill_area
+          )
+        )
+      `
+      )
+      .is('deleted_at', null); // Exclude soft-deleted users
+
+    // Apply skill area filter if provided
+    if (skill_area) {
+      query = query.eq('submissions.tasks.skill_area', skill_area);
+    }
+
+    const { data: usersData, error: usersError } = await query;
+
+    if (usersError) {
+      logger.error('❌ Failed to fetch users for leaderboard:', {
+        error: usersError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch leaderboard data',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const users = usersData || [];
+
+    // CaBE Point System v3 rank calculation function
+    const calculateRank = (points: number): string => {
+      if (points >= 10000) return 'Platinum';
+      if (points >= 5000) return 'Gold';
+      if (points >= 1000) return 'Silver';
+      return 'Bronze';
+    };
+
+    // Process user data and calculate leaderboard entries
+    const leaderboardEntries = users
+      .map((user) => {
+        const submissions = user.submissions || [];
+        const scoredSubmissions = submissions.filter(
+          (s) => s.status === 'scored' && s.score !== null
+        );
+
+        if (scoredSubmissions.length === 0) {
+          return null; // Skip users with no scored submissions
+        }
+
+        // Calculate user statistics
+        const totalPoints = user.points || 0;
+        const scores = scoredSubmissions.map((s) => s.score);
+        const averageScore =
+          scores.length > 0
+            ? Math.round(
+                (scores.reduce((sum, score) => sum + score, 0) /
+                  scores.length) *
+                  100
+              ) / 100
+            : 0;
+
+        // Calculate top skill area based on points earned
+        const skillAreaPoints = {};
+        scoredSubmissions.forEach((submission) => {
+          if (submission.tasks?.skill_area && submission.score !== null) {
+            const skillArea = submission.tasks.skill_area;
+            skillAreaPoints[skillArea] =
+              (skillAreaPoints[skillArea] || 0) + submission.score;
+          }
+        });
+
+        const topSkillArea =
+          Object.keys(skillAreaPoints).length > 0
+            ? Object.entries(skillAreaPoints).reduce((a, b) =>
+                a[1] > b[1] ? a : b
+              )[0]
+            : 'unknown';
+
+        // Get last submission timestamp
+        const lastSubmissionAt =
+          submissions.length > 0
+            ? submissions.reduce((latest, current) =>
+                new Date(current.submitted_at) > new Date(latest.submitted_at)
+                  ? current
+                  : latest
+              ).submitted_at
+            : null;
+
+        // Extract username from email
+        const emailParts = user.email.split('@');
+        const username = emailParts[0] || user.email;
+
+        return {
+          user_id: user.id,
+          username,
+          email: user.email,
+          total_points: totalPoints,
+          rank: calculateRank(totalPoints),
+          top_skill_area: topSkillArea,
+          total_submissions: scoredSubmissions.length,
+          average_score: averageScore,
+          last_submission_at: lastSubmissionAt,
+        };
+      })
+      .filter((entry) => entry !== null) // Remove null entries
+      .sort((a, b) => b.total_points - a.total_points); // Sort by total points descending
+
+    // Apply pagination
+    const totalCount = leaderboardEntries.length;
+    const paginatedEntries = leaderboardEntries.slice(
+      offsetNum,
+      offsetNum + limitNum
+    );
+
+    logger.info('✅ Successfully fetched leaderboard:', {
+      totalUsers: totalCount,
+      returnedUsers: paginatedEntries.length,
+      skillArea: skill_area || 'all',
+      limit: limitNum,
+      offset: offsetNum,
+    });
+
+    res.json({
+      success: true,
+      message: 'Leaderboard fetched successfully',
+      leaderboard: paginatedEntries,
+      count: totalCount,
+      pagination: {
+        limit: limitNum,
+        offset: offsetNum,
+        total: totalCount,
+        hasNextPage: offsetNum + limitNum < totalCount,
+        currentPage: Math.floor(offsetNum / limitNum) + 1,
+        totalPages: Math.ceil(totalCount / limitNum),
+      },
+      filters: {
+        skill_area: skill_area || null,
+      },
+      metadata: {
+        calculatedAt: new Date().toISOString(),
+        rankSystem: {
+          name: 'CaBE Point System v3',
+          thresholds: {
+            Bronze: '0-999 points',
+            Silver: '1,000-4,999 points',
+            Gold: '5,000-9,999 points',
+            Platinum: '10,000+ points',
+          },
+        },
+        dataPoints: {
+          totalUsers: totalCount,
+          returnedUsers: paginatedEntries.length,
+          skillAreaFilter: skill_area || 'none',
+        },
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena leaderboard endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment ? errorMessage : 'Failed to fetch leaderboard',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/leaderboard/top - Get top users from leaderboard
+router.get('/leaderboard/top', async (req, res) => {
+  try {
+    const { limit = 10, skill_area } = req.query;
+
+    logger.info('🏆 Fetching top leaderboard', {
+      limit: parseInt(limit as string),
+      skill_area: skill_area || 'all',
+    });
+
+    // Validate query parameters
+    const limitNum = parseInt(limit as string);
+
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 50) {
+      logger.warn('❌ Invalid limit parameter for top leaderboard', { limit });
+      return res.status(400).json({
+        success: false,
+        error: 'Limit must be a number between 1 and 50',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate skill area if provided
+    const validSkillAreas = [
+      'frontend',
+      'backend',
+      'database',
+      'algorithm',
+      'system',
+    ];
+    if (skill_area && !validSkillAreas.includes(skill_area as string)) {
+      logger.warn('❌ Invalid skill area parameter for top leaderboard', {
+        skill_area,
+      });
+      return res.status(400).json({
+        success: false,
+        error:
+          'Invalid skill area. Valid options: frontend, backend, database, algorithm, system',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Build query to get top users from leaderboard table
+    let query = supabaseAdmin
+      .from('leaderboard')
+      .select(
+        `
+        user_id,
+        points,
+        last_updated,
+        users!leaderboard_user_id_fkey (
+          id,
+          email,
+          created_at
+        )
+      `
+      )
+      .order('points', { ascending: false })
+      .limit(limitNum);
+
+    // Apply skill area filter if provided
+    if (skill_area) {
+      // For skill area filtering, we need to join with submissions and tasks
+      // This is a more complex query that will be implemented later
+      logger.info(
+        '🎯 Skill area filtering requested (will be implemented in future)',
+        { skill_area }
+      );
+      // For now, we'll return all top users regardless of skill area
+    }
+
+    const { data: leaderboardData, error: leaderboardError } = await query;
+
+    if (leaderboardError) {
+      logger.error('❌ Failed to fetch top leaderboard:', {
+        error: leaderboardError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch top leaderboard data',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Process and format the leaderboard data
+    const topUsers = (leaderboardData || [])
+      .map((entry, index) => {
+        const user = entry.users;
+        if (!user) {
+          logger.warn('⚠️ Leaderboard entry missing user data:', {
+            user_id: entry.user_id,
+          });
+          return null;
+        }
+
+        // Extract username from email
+        const emailParts = user.email.split('@');
+        const username = emailParts[0] || user.email;
+
+        // Calculate rank (positional: 1st, 2nd, etc.)
+        const rank = index + 1;
+
+        return {
+          rank,
+          user_id: entry.user_id,
+          email: user.email,
+          username,
+          points: entry.points,
+          last_updated: entry.last_updated,
+          created_at: user.created_at,
+        };
+      })
+      .filter((user) => user !== null); // Remove null entries
+
+    logger.info('✅ Successfully fetched top leaderboard:', {
+      totalUsers: topUsers.length,
+      limit: limitNum,
+      skillArea: skill_area || 'all',
+      topRank: topUsers.length > 0 ? topUsers[0].rank : 0,
+      topPoints: topUsers.length > 0 ? topUsers[0].points : 0,
+    });
+
+    res.json({
+      success: true,
+      message: 'Top leaderboard fetched successfully',
+      topUsers,
+      count: topUsers.length,
+      metadata: {
+        limit: limitNum,
+        skillArea: skill_area || 'all',
+        calculatedAt: new Date().toISOString(),
+        dataPoints: {
+          totalUsers: topUsers.length,
+          topRank: topUsers.length > 0 ? topUsers[0].rank : 0,
+          topPoints: topUsers.length > 0 ? topUsers[0].points : 0,
+        },
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena top leaderboard endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to fetch top leaderboard',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/leaderboard/my-rank - Get user's own rank in leaderboard
+router.get('/leaderboard/my-rank', async (req, res) => {
+  try {
+    // TODO: In production, extract user_id from JWT token/session
+    // For now, we'll get it from query params
+    const user_id = req.query.user_id as string;
+
+    logger.info('🏆 Fetching user rank in leaderboard', {
+      user_id,
+    });
+
+    // Validate required parameters
+    if (!user_id) {
+      logger.warn('❌ Missing user_id for rank lookup');
+      return res.status(400).json({
+        success: false,
+        error: 'user_id is required',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // First, get the user's current points from leaderboard table
+    const { data: userLeaderboardData, error: userLeaderboardError } =
+      await supabaseAdmin
+        .from('leaderboard')
+        .select(
+          `
+        user_id,
+        points,
+        last_updated,
+        users!leaderboard_user_id_fkey (
+          id,
+          email,
+          created_at
+        )
+      `
+        )
+        .eq('user_id', user_id)
+        .single();
+
+    if (userLeaderboardError || !userLeaderboardData) {
+      logger.error('❌ User not found in leaderboard:', {
+        user_id,
+        error: userLeaderboardError?.message,
+      });
+      return res.status(404).json({
+        success: false,
+        error: 'User not found in leaderboard',
+        user_id,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Get all users from leaderboard to calculate rank and percentile
+    const { data: allLeaderboardData, error: allLeaderboardError } =
+      await supabaseAdmin
+        .from('leaderboard')
+        .select(
+          `
+        user_id,
+        points,
+        users!leaderboard_user_id_fkey (
+          id,
+          email
+        )
+      `
+        )
+        .order('points', { ascending: false });
+
+    if (allLeaderboardError) {
+      logger.error(
+        '❌ Failed to fetch leaderboard data for rank calculation:',
+        {
+          error: allLeaderboardError?.message,
+        }
+      );
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to calculate user rank',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const allUsers = allLeaderboardData || [];
+    const totalUsers = allUsers.length;
+
+    if (totalUsers === 0) {
+      logger.warn('⚠️ No users found in leaderboard');
+      return res.status(404).json({
+        success: false,
+        error: 'No users found in leaderboard',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Find user's position in the sorted leaderboard
+    const userIndex = allUsers.findIndex((user) => user.user_id === user_id);
+
+    if (userIndex === -1) {
+      logger.error('❌ User not found in leaderboard data:', { user_id });
+      return res.status(404).json({
+        success: false,
+        error: 'User not found in leaderboard data',
+        user_id,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Calculate rank (1-based index)
+    const rank = userIndex + 1;
+
+    // Calculate percentile
+    const percentile = Math.round(((totalUsers - rank + 1) / totalUsers) * 100);
+
+    // Get user data
+    const user = userLeaderboardData.users;
+    if (!user) {
+      logger.error('❌ User data missing from leaderboard entry:', { user_id });
+      return res.status(500).json({
+        success: false,
+        error: 'User data missing from leaderboard entry',
+        user_id,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Extract username from email
+    const emailParts = user.email.split('@');
+    const username = emailParts[0] || user.email;
+
+    // Calculate additional statistics
+    const userPoints = userLeaderboardData.points;
+    const topUserPoints = allUsers[0]?.points || 0;
+    const pointsToNextRank =
+      rank > 1 ? (allUsers[rank - 2]?.points || 0) - userPoints : 0;
+    const pointsAheadOfNext =
+      rank < totalUsers ? userPoints - (allUsers[rank]?.points || 0) : 0;
+
+    // Determine percentile category
+    let percentileCategory = '';
+    if (percentile >= 95) percentileCategory = 'Top 5%';
+    else if (percentile >= 90) percentileCategory = 'Top 10%';
+    else if (percentile >= 80) percentileCategory = 'Top 20%';
+    else if (percentile >= 70) percentileCategory = 'Top 30%';
+    else if (percentile >= 50) percentileCategory = 'Top 50%';
+    else percentileCategory = 'Below 50%';
+
+    logger.info('✅ Successfully calculated user rank:', {
+      user_id,
+      email: user.email,
+      rank,
+      totalUsers,
+      percentile,
+      percentileCategory,
+      points: userPoints,
+    });
+
+    res.json({
+      success: true,
+      message: 'User rank calculated successfully',
+      user: {
+        user_id,
+        email: user.email,
+        username,
+        rank,
+        points: userPoints,
+        percentile,
+        percentileCategory,
+        created_at: user.created_at,
+        last_updated: userLeaderboardData.last_updated,
+      },
+      leaderboardStats: {
+        totalUsers,
+        topUserPoints,
+        pointsToNextRank: pointsToNextRank > 0 ? pointsToNextRank : 0,
+        pointsAheadOfNext: pointsAheadOfNext > 0 ? pointsAheadOfNext : 0,
+        position: `${rank} of ${totalUsers}`,
+      },
+      metadata: {
+        calculatedAt: new Date().toISOString(),
+        dataPoints: {
+          totalUsers,
+          userRank: rank,
+          userPercentile: percentile,
+        },
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena my-rank endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment ? errorMessage : 'Failed to calculate user rank',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// POST /api/arena/tasks/:id/score - Admin/Auto scoring for task submissions
+router.post('/tasks/:id/score', async (req, res) => {
+  try {
+    const { id: taskId } = req.params;
+    const { submission_id, score, review_notes } = req.body;
+
+    logger.info('🎯 Admin scoring submission for task', {
+      task_id: taskId,
+      submission_id,
+      score,
+      has_review_notes: !!review_notes,
+    });
+
+    // Validate required parameters
+    if (!taskId) {
+      logger.warn('❌ Missing task ID parameter');
+      return res.status(400).json({
+        success: false,
+        error: 'Task ID is required',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (!submission_id) {
+      logger.warn('❌ Missing submission_id in request body');
+      return res.status(400).json({
+        success: false,
+        error: 'submission_id is required',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (score === undefined || score === null) {
+      logger.warn('❌ Missing score in request body');
+      return res.status(400).json({
+        success: false,
+        error: 'score is required',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate score range
+    const scoreNum = parseFloat(score);
+    if (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 100) {
+      logger.warn('❌ Invalid score value', { score });
+      return res.status(400).json({
+        success: false,
+        error: 'score must be a number between 0 and 100',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Fetch task to validate it exists and is active
+    const { data: taskData, error: taskError } = await supabaseAdmin
+      .from('tasks')
+      .select('id, title, is_active')
+      .eq('id', taskId)
+      .single();
+
+    if (taskError || !taskData) {
+      logger.error('❌ Task not found for scoring:', {
+        task_id: taskId,
+        error: taskError?.message,
+      });
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found',
+        task_id: taskId,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (!taskData.is_active) {
+      logger.warn('❌ Attempting to score submission for inactive task', {
+        task_id: taskId,
+        task_title: taskData.title,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot score submissions for inactive tasks',
+        task_id: taskId,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Fetch submission to validate it exists and belongs to the task
+    const { data: submissionData, error: submissionError } = await supabaseAdmin
+      .from('submissions')
+      .select(
+        `
+        id,
+        user_id,
+        task_id,
+        status,
+        score,
+        submitted_at,
+        users!submissions_user_id_fkey (
+          id,
+          email,
+          points
+        ),
+        tasks!submissions_task_id_fkey (
+          id,
+          title,
+          skill_area
+        )
+      `
+      )
+      .eq('id', submission_id)
+      .single();
+
+    if (submissionError || !submissionData) {
+      logger.error('❌ Submission not found for scoring:', {
+        submission_id,
+        error: submissionError?.message,
+      });
+      return res.status(404).json({
+        success: false,
+        error: 'Submission not found',
+        submission_id,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate submission belongs to the specified task
+    if (submissionData.task_id !== taskId) {
+      logger.warn('❌ Submission does not belong to specified task', {
+        submission_id,
+        submission_task_id: submissionData.task_id,
+        requested_task_id: taskId,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Submission does not belong to the specified task',
+        submission_id,
+        submission_task_id: submissionData.task_id,
+        requested_task_id: taskId,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Check if submission is already scored
+    if (submissionData.status === 'scored' && submissionData.score !== null) {
+      logger.warn('❌ Attempting to score already scored submission', {
+        submission_id,
+        current_score: submissionData.score,
+        current_status: submissionData.status,
+      });
+      return res.status(409).json({
+        success: false,
+        error: 'Submission is already scored',
+        submission_id,
+        current_score: submissionData.score,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Check if submission is soft-deleted
+    if (submissionData.deleted_at) {
+      logger.warn('❌ Attempting to score soft-deleted submission', {
+        submission_id,
+        deleted_at: submissionData.deleted_at,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot score soft-deleted submissions',
+        submission_id,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const currentTime = new Date();
+    const scoredAt = currentTime.toISOString();
+
+    // Update submission with score and review notes
+    const { data: updatedSubmission, error: updateError } = await supabaseAdmin
+      .from('submissions')
+      .update({
+        status: 'scored',
+        score: scoreNum,
+        review_notes: review_notes || null,
+        scored_at: scoredAt,
+        reviewed_at: scoredAt,
+      })
+      .eq('id', submission_id)
+      .select('id, user_id, task_id, status, score, review_notes, scored_at')
+      .single();
+
+    if (updateError || !updatedSubmission) {
+      logger.error('❌ Failed to update submission with score:', {
+        submission_id,
+        error: updateError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to update submission with score',
+        submission_id,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Calculate points awarded (score is the points awarded)
+    const pointsAwarded = scoreNum;
+
+    // Update user's total points
+    const currentUserPoints = submissionData.users?.points || 0;
+    const newUserPoints = currentUserPoints + pointsAwarded;
+
+    const { data: updatedUser, error: userError } = await supabaseAdmin
+      .from('users')
+      .update({
+        points: newUserPoints,
+      })
+      .eq('id', submissionData.user_id)
+      .select('id, email, points')
+      .single();
+
+    if (userError || !updatedUser) {
+      logger.error('❌ Failed to update user points:', {
+        user_id: submissionData.user_id,
+        error: userError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to update user points',
+        submission_id,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('✅ Successfully scored submission:', {
+      submission_id,
+      task_id: taskId,
+      task_title: submissionData.tasks?.title,
+      user_email: submissionData.users?.email,
+      score: scoreNum,
+      points_awarded: pointsAwarded,
+      previous_points: currentUserPoints,
+      new_total_points: updatedUser.points,
+      review_notes: !!review_notes,
+    });
+
+    res.json({
+      success: true,
+      message: 'Submission scored successfully',
+      submission_id,
+      score: scoreNum,
+      points_awarded: pointsAwarded,
+      metadata: {
+        task_id: taskId,
+        task_title: submissionData.tasks?.title,
+        user_id: submissionData.user_id,
+        user_email: submissionData.users?.email,
+        previous_points: currentUserPoints,
+        new_total_points: updatedUser.points,
+        review_notes: review_notes || null,
+        scored_at: scoredAt,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena task scoring endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment ? errorMessage : 'Failed to score submission',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/premium-features - Example route using rank middleware
+// This route requires Silver rank or higher
+router.get(
+  '/premium-features',
+  attachUserRank,
+  requireRank('Silver'),
+  logRankInfo,
+  async (req, res) => {
+    try {
+      // At this point, req.user is guaranteed to exist and have Silver+ rank
+      const user = req.user!;
+
+      logger.info('🎯 Accessing premium features', {
+        user_id: user.id,
+        email: user.email,
+        rankLevel: user.rankLevel,
+        points: user.points,
+      });
+
+      // Get features using the feature access utility
+      const availableFeatures = getFeaturesForRank(user.rankLevel as any);
+      const nextRankFeatures = getNextRankFeatures(user.rankLevel as any);
+      const featureAccessInfo = getFeatureAccessInfo(user.points);
+
+      res.json({
+        success: true,
+        message: 'Premium features accessed successfully',
+        user: {
+          id: user.id,
+          email: user.email,
+          rankLevel: user.rankLevel,
+          points: user.points,
+        },
+        features: availableFeatures,
+        rankBenefits: {
+          currentRank: user.rankLevel,
+          availableFeatures: availableFeatures.length,
+          nextRankFeatures,
+          pointsToNextRank: featureAccessInfo.pointsToNextRank,
+          progressToNextRank: featureAccessInfo.progressToNextRank,
+        },
+        featureAccess: featureAccessInfo,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'Unknown error occurred';
+      logger.error('❌ Premium features endpoint error:', err);
+      res.status(500).json({
+        success: false,
+        error: env.isDevelopment
+          ? errorMessage
+          : 'Failed to access premium features',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+// GET /api/arena/locked/:feature_name - Check feature access and return lock screen config
+router.get('/locked/:feature_name', attachUserRank, async (req, res) => {
+  try {
+    const { feature_name } = req.params;
+
+    // At this point, req.user is guaranteed to exist from attachUserRank middleware
+    const user = req.user!;
+
+    logger.info('🔐 Checking feature access', {
+      user_id: user.id,
+      email: user.email,
+      feature_name,
+      currentRank: user.rankLevel,
+      currentPoints: user.points,
+    });
+
+    // Validate feature_name exists in RANK_FEATURES
+    if (!isValidFeature(feature_name)) {
+      logger.warn('❌ Invalid feature name requested:', {
+        user_id: user.id,
+        feature_name,
+        currentRank: user.rankLevel,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid feature name',
+        feature_name,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Check access using hasFeatureAccess
+    const hasAccess = hasFeatureAccess(user.rankLevel as any, feature_name);
+
+    if (hasAccess) {
+      logger.info('✅ Feature access granted:', {
+        user_id: user.id,
+        feature_name,
+        currentRank: user.rankLevel,
+        currentPoints: user.points,
+      });
+
+      return res.json({
+        success: true,
+        access: true,
+        message: 'Feature unlocked',
+        user: {
+          id: user.id,
+          email: user.email,
+          rankLevel: user.rankLevel,
+          points: user.points,
+        },
+        feature: feature_name,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Feature is locked - get detailed lock screen configuration
+    const requiredRank = getMinimumRankForFeature(feature_name);
+
+    if (!requiredRank) {
+      logger.error('❌ Could not determine required rank for feature:', {
+        user_id: user.id,
+        feature_name,
+        currentRank: user.rankLevel,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Could not determine required rank for feature',
+        feature_name,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Calculate required points for that rank
+    const requiredPoints =
+      RANK_TIERS[requiredRank.toUpperCase() as keyof typeof RANK_TIERS].min;
+    const pointsToUnlock = Math.max(0, requiredPoints - user.points);
+    const progressToUnlock = Math.min(
+      (user.points / requiredPoints) * 100,
+      100
+    );
+
+    // Get comprehensive feature access info for bonus UX
+    const featureAccessInfo = getFeatureAccessInfo(user.points);
+
+    logger.info('🔒 Feature access denied - lock screen config generated:', {
+      user_id: user.id,
+      feature_name,
+      currentRank: user.rankLevel,
+      requiredRank,
+      currentPoints: user.points,
+      requiredPoints,
+      pointsToUnlock,
+      progressToUnlock,
+    });
+
+    res.json({
+      success: true,
+      access: false,
+      feature: feature_name,
+      currentRank: user.rankLevel,
+      requiredRank,
+      currentPoints: user.points,
+      requiredPoints,
+      pointsToUnlock,
+      progressToUnlock,
+      message: `Unlock by reaching ${requiredRank} (${requiredPoints} points)`,
+      user: {
+        id: user.id,
+        email: user.email,
+        rankLevel: user.rankLevel,
+        points: user.points,
+      },
+      // Bonus UX: Include comprehensive feature access information
+      featureAccess: {
+        currentFeatures: featureAccessInfo.currentFeatures,
+        nextRankFeatures: featureAccessInfo.nextRankFeatures,
+        lockedFeatures: featureAccessInfo.lockedFeatures,
+        totalFeatures: featureAccessInfo.totalFeatures,
+        totalLockedFeatures: featureAccessInfo.totalLockedFeatures,
+        progressToNextRank: featureAccessInfo.progressToNextRank,
+      },
+      // Additional context for UI
+      rankContext: {
+        currentRankMinPoints:
+          RANK_TIERS[user.rankLevel.toUpperCase() as keyof typeof RANK_TIERS]
+            .min,
+        currentRankMaxPoints:
+          RANK_TIERS[user.rankLevel.toUpperCase() as keyof typeof RANK_TIERS]
+            .max,
+        requiredRankMinPoints: requiredPoints,
+        rankHierarchy: ['Bronze', 'Silver', 'Gold', 'Platinum'],
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Feature access check endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to check feature access',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/access-check - Check Arena access status
+router.get('/access-check', attachUserRank, async (req, res) => {
+  try {
+    // At this point, req.user is guaranteed to exist from attachUserRank middleware
+    const user = req.user!;
+
+    logger.info('🔐 Checking Arena access status', {
+      user_id: user.id,
+      email: user.email,
+      currentRank: user.rankLevel,
+      currentPoints: user.points,
+    });
+
+    // Get comprehensive Arena access information using the utility
+    const arenaAccessInfo = getArenaAccessInfo(user.points);
+
+    // Check if user has access to Arena
+    if (!arenaAccessInfo.canAccess) {
+      logger.warn('❌ Arena access denied:', {
+        user_id: user.id,
+        email: user.email,
+        reason: arenaAccessInfo.reason,
+        currentPoints: user.points,
+      });
+
+      return res.status(403).json({
+        success: false,
+        error: arenaAccessInfo.reason,
+        accessInfo: arenaAccessInfo,
+        user: {
+          id: user.id,
+          email: user.email,
+          rankLevel: user.rankLevel,
+          points: user.points,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('✅ Arena access granted:', {
+      user_id: user.id,
+      email: user.email,
+      currentRank: user.rankLevel,
+      currentPoints: user.points,
+      reason: arenaAccessInfo.reason,
+    });
+
+    res.json({
+      success: true,
+      message: 'Arena access check completed successfully',
+      access: arenaAccessInfo,
+      user: {
+        id: user.id,
+        email: user.email,
+        rankLevel: user.rankLevel,
+        points: user.points,
+      },
+      // Additional context for UI
+      arenaContext: {
+        currentRank: user.rankLevel,
+        currentPoints: user.points,
+        accessGranted: arenaAccessInfo.canAccess,
+        accessReason: arenaAccessInfo.reason,
+        requirementsMet: arenaAccessInfo.requirements.pointsMet,
+        restrictions: arenaAccessInfo.restrictions,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena access check endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment ? errorMessage : 'Failed to check Arena access',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/progress-bar - Get user's progress towards next rank
+router.get('/progress-bar', attachUserRank, async (req, res) => {
+  try {
+    // At this point, req.user is guaranteed to exist from attachUserRank middleware
+    const user = req.user!;
+
+    logger.info('📊 Fetching user progress towards next rank', {
+      user_id: user.id,
+      email: user.email,
+      currentRank: user.rankLevel,
+      currentPoints: user.points,
+    });
+
+    // Get comprehensive feature access info which includes progress data
+    const featureAccessInfo = getFeatureAccessInfo(user.points);
+
+    // Extract progress information
+    const {
+      currentRank,
+      currentPoints,
+      nextRank,
+      pointsToNextRank,
+      progressToNextRank,
+    } = featureAccessInfo;
+
+    logger.info('✅ Successfully calculated user progress:', {
+      user_id: user.id,
+      email: user.email,
+      currentRank,
+      currentPoints,
+      nextRank,
+      pointsToNextRank,
+      progressToNextRank,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'User progress towards next rank fetched successfully',
+      progress: {
+        rankLevel: currentRank,
+        points: currentPoints,
+        nextRank: nextRank,
+        pointsToNextRank: pointsToNextRank,
+        progressToNextRank: progressToNextRank,
+      },
+      user: {
+        id: user.id,
+        email: user.email,
+        rankLevel: user.rankLevel,
+        points: user.points,
+      },
+      // Additional context for UI
+      rankContext: {
+        currentRank,
+        nextRank,
+        isMaxRank: nextRank === null,
+        progressPercentage: progressToNextRank,
+        pointsRemaining: pointsToNextRank,
+        rankHierarchy: ['Bronze', 'Silver', 'Gold', 'Platinum'],
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena progress bar endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment ? errorMessage : 'Failed to fetch user progress',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/user-score - Get user's current score and historical point changes
+router.get('/user-score', attachUserRank, async (req, res) => {
+  try {
+    // At this point, req.user is guaranteed to exist from attachUserRank middleware
+    const user = req.user!;
+
+    logger.info('📊 Fetching user score and historical changes', {
+      user_id: user.id,
+      email: user.email,
+      currentRank: user.rankLevel,
+      currentPoints: user.points,
+    });
+
+    // Fetch user's scored submissions to build point history
+    const { data: scoredSubmissions, error: submissionsError } =
+      await supabaseAdmin
+        .from('submissions')
+        .select(
+          `
+          id,
+          task_id,
+          score,
+          points_breakdown,
+          submitted_at,
+          scored_at,
+          tasks!submissions_task_id_fkey (
+            id,
+            title,
+            skill_area
+          )
+        `
+        )
+        .eq('user_id', user.id)
+        .eq('status', 'scored')
+        .not('score', 'is', null)
+        .order('scored_at', { ascending: false });
+
+    if (submissionsError) {
+      logger.error('❌ Failed to fetch user submissions for score history:', {
+        user_id: user.id,
+        error: submissionsError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch score history',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Build point history from scored submissions
+    const scoreHistory = (scoredSubmissions || []).map((submission) => {
+      // Calculate points awarded (using CaBE v5 if breakdown exists, otherwise use score)
+      let pointsAwarded = submission.score;
+      let reason = `Task completion: ${submission.tasks?.title || 'Unknown Task'}`;
+
+      // If we have points breakdown, use the actual points awarded
+      if (submission.points_breakdown) {
+        try {
+          const breakdown = JSON.parse(submission.points_breakdown);
+          pointsAwarded = breakdown.pointsAwarded || submission.score;
+          reason = `CaBE v5 scoring: ${submission.tasks?.title || 'Unknown Task'}`;
+        } catch (parseError) {
+          logger.warn('❌ Failed to parse points breakdown:', {
+            submission_id: submission.id,
+            points_breakdown: submission.points_breakdown,
+          });
+        }
+      }
+
+      return {
+        reason,
+        delta: pointsAwarded,
+        resultingPoints: 0, // Will be calculated below
+        timestamp: submission.scored_at || submission.submitted_at,
+        submission_id: submission.id,
+        task_title: submission.tasks?.title,
+        skill_area: submission.tasks?.skill_area,
+        score: submission.score,
+      };
+    });
+
+    // Calculate cumulative points to determine resultingPoints for each entry
+    let cumulativePoints = 0;
+    const historyWithCumulative = scoreHistory.map((entry) => {
+      cumulativePoints += entry.delta;
+      return {
+        ...entry,
+        resultingPoints: cumulativePoints,
+      };
+    });
+
+    // Add initial points entry if user has points but no submissions
+    if (user.points > 0 && historyWithCumulative.length === 0) {
+      historyWithCumulative.push({
+        reason: 'Initial points',
+        delta: user.points,
+        resultingPoints: user.points,
+        timestamp: user.created_at || new Date().toISOString(),
+        submission_id: null,
+        task_title: null,
+        skill_area: null,
+        score: null,
+      });
+    }
+
+    // Sort by newest first (already sorted from DB, but ensure consistency)
+    const sortedHistory = historyWithCumulative.sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+
+    // Calculate summary statistics
+    const totalSubmissions = scoredSubmissions?.length || 0;
+    const totalPointsEarned = sortedHistory.reduce(
+      (sum, entry) => sum + entry.delta,
+      0
+    );
+    const averagePointsPerSubmission =
+      totalSubmissions > 0 ? totalPointsEarned / totalSubmissions : 0;
+
+    logger.info('✅ Successfully fetched user score and history:', {
+      user_id: user.id,
+      email: user.email,
+      currentPoints: user.points,
+      totalSubmissions,
+      totalPointsEarned,
+      historyEntries: sortedHistory.length,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'User score and historical changes fetched successfully',
+      score: {
+        rankLevel: user.rankLevel,
+        points: user.points,
+        totalSubmissions,
+        totalPointsEarned,
+        averagePointsPerSubmission:
+          Math.round(averagePointsPerSubmission * 100) / 100,
+      },
+      history: sortedHistory,
+      user: {
+        id: user.id,
+        email: user.email,
+        rankLevel: user.rankLevel,
+        points: user.points,
+      },
+      // Additional context for UI
+      scoreContext: {
+        currentRank: user.rankLevel,
+        currentPoints: user.points,
+        totalHistoryEntries: sortedHistory.length,
+        lastScoreChange:
+          sortedHistory.length > 0 ? sortedHistory[0].timestamp : null,
+        pointsTrend:
+          sortedHistory.length >= 2
+            ? sortedHistory[0].delta > sortedHistory[1].delta
+              ? 'increasing'
+              : 'decreasing'
+            : 'stable',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena user score endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment ? errorMessage : 'Failed to fetch user score',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/task-history - Get user's full task submission history
+router.get('/task-history', attachUserRank, async (req, res) => {
+  try {
+    // At this point, req.user is guaranteed to exist from attachUserRank middleware
+    const user = req.user!;
+
+    logger.info('📋 Fetching user task submission history', {
+      user_id: user.id,
+      email: user.email,
+      currentRank: user.rankLevel,
+      currentPoints: user.points,
+    });
+
+    // Fetch all user submissions with task details
+    const { data: submissions, error: submissionsError } = await supabaseAdmin
+      .from('submissions')
+      .select(
+        `
+          id,
+          task_id,
+          status,
+          score,
+          points_breakdown,
+          submitted_at,
+          scored_at,
+          reviewed_at,
+          flagged_at,
+          flagged_reason,
+          deleted_at,
+          tasks!submissions_task_id_fkey (
+            id,
+            title,
+            description,
+            skill_area,
+            created_at
+          )
+        `
+      )
+      .eq('user_id', user.id)
+      .order('submitted_at', { ascending: false }); // Latest submissions first
+
+    if (submissionsError) {
+      logger.error('❌ Failed to fetch user task history:', {
+        user_id: user.id,
+        error: submissionsError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch task history',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Process submissions to include points_awarded and additional context
+    const taskHistory = (submissions || []).map((submission) => {
+      // Calculate points awarded (using CaBE v5 if breakdown exists, otherwise use score)
+      let pointsAwarded = 0;
+      if (submission.status === 'scored' && submission.score !== null) {
+        pointsAwarded = submission.score; // Default to score
+
+        // If we have points breakdown, use the actual points awarded
+        if (submission.points_breakdown) {
+          try {
+            const breakdown = JSON.parse(submission.points_breakdown);
+            pointsAwarded = breakdown.pointsAwarded || submission.score;
+          } catch (parseError) {
+            logger.warn('❌ Failed to parse points breakdown:', {
+              submission_id: submission.id,
+              points_breakdown: submission.points_breakdown,
+            });
+          }
+        }
+      }
+
+      return {
+        task_id: submission.task_id,
+        task_title: submission.tasks?.title || 'Unknown Task',
+        status: submission.status,
+        score: submission.score,
+        points_awarded: pointsAwarded,
+        skill_area: submission.tasks?.skill_area || 'unknown',
+        submitted_at: submission.submitted_at,
+        scored_at: submission.scored_at,
+        // Additional context
+        submission_id: submission.id,
+        reviewed_at: submission.reviewed_at,
+        flagged_at: submission.flagged_at,
+        flagged_reason: submission.flagged_reason,
+        deleted_at: submission.deleted_at,
+        task_description: submission.tasks?.description,
+        task_created_at: submission.tasks?.created_at,
+      };
+    });
+
+    // Calculate summary statistics
+    const totalTasks = taskHistory.length;
+    const completedTasks = taskHistory.filter(
+      (entry) => entry.status === 'scored'
+    ).length;
+    const scoredEntries = taskHistory.filter(
+      (entry) => entry.status === 'scored' && entry.score !== null
+    );
+    const averageScore =
+      scoredEntries.length > 0
+        ? Math.round(
+            (scoredEntries.reduce((sum, entry) => sum + entry.score, 0) /
+              scoredEntries.length) *
+              100
+          ) / 100
+        : 0;
+    const totalPoints = taskHistory.reduce(
+      (sum, entry) => sum + entry.points_awarded,
+      0
+    );
+
+    // Additional summary statistics
+    const pendingTasks = taskHistory.filter(
+      (entry) => entry.status === 'pending'
+    ).length;
+    const flaggedTasks = taskHistory.filter(
+      (entry) => entry.status === 'flagged'
+    ).length;
+    const deletedTasks = taskHistory.filter(
+      (entry) => entry.deleted_at !== null
+    ).length;
+
+    // Skill area breakdown
+    const skillBreakdown = taskHistory.reduce(
+      (acc, entry) => {
+        const skill = entry.skill_area;
+        if (!acc[skill]) {
+          acc[skill] = {
+            count: 0,
+            totalPoints: 0,
+            averageScore: 0,
+            scores: [],
+          };
+        }
+        acc[skill].count++;
+        acc[skill].totalPoints += entry.points_awarded;
+        if (entry.status === 'scored' && entry.score !== null) {
+          acc[skill].scores.push(entry.score);
+        }
+        return acc;
+      },
+      {} as Record<
+        string,
+        {
+          count: number;
+          totalPoints: number;
+          averageScore: number;
+          scores: number[];
+        }
+      >
+    );
+
+    // Calculate average scores per skill area
+    Object.keys(skillBreakdown).forEach((skill) => {
+      const scores = skillBreakdown[skill].scores;
+      skillBreakdown[skill].averageScore =
+        scores.length > 0
+          ? Math.round(
+              (scores.reduce((sum, score) => sum + score, 0) / scores.length) *
+                100
+            ) / 100
+          : 0;
+      delete skillBreakdown[skill].scores; // Remove scores array from final output
+    });
+
+    logger.info('✅ Successfully fetched user task history:', {
+      user_id: user.id,
+      email: user.email,
+      totalTasks,
+      completedTasks,
+      averageScore,
+      totalPoints,
+      pendingTasks,
+      flaggedTasks,
+      deletedTasks,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'User task submission history fetched successfully',
+      summary: {
+        totalTasks,
+        completedTasks,
+        averageScore,
+        totalPoints,
+        pendingTasks,
+        flaggedTasks,
+        deletedTasks,
+        skillBreakdown,
+      },
+      history: taskHistory,
+      user: {
+        id: user.id,
+        email: user.email,
+        rankLevel: user.rankLevel,
+        points: user.points,
+      },
+      // Additional context for UI
+      historyContext: {
+        totalHistoryEntries: taskHistory.length,
+        lastSubmission:
+          taskHistory.length > 0 ? taskHistory[0].submitted_at : null,
+        firstSubmission:
+          taskHistory.length > 0
+            ? taskHistory[taskHistory.length - 1].submitted_at
+            : null,
+        completionRate:
+          totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+        averagePointsPerTask:
+          totalTasks > 0
+            ? Math.round((totalPoints / totalTasks) * 100) / 100
+            : 0,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena task history endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment ? errorMessage : 'Failed to fetch task history',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/summary-ai - Get AI-powered career progress summary
+router.get('/summary-ai', attachUserRank, async (req, res) => {
+  try {
+    // At this point, req.user is guaranteed to exist from attachUserRank middleware
+    const user = req.user!;
+
+    logger.info('🤖 Generating AI career progress summary', {
+      user_id: user.id,
+      email: user.email,
+      currentRank: user.rankLevel,
+      currentPoints: user.points,
+    });
+
+    // Fetch user's task history (similar to /task-history endpoint)
+    const { data: submissions, error: submissionsError } = await supabaseAdmin
+      .from('submissions')
+      .select(
+        `
+          id,
+          task_id,
+          status,
+          score,
+          points_breakdown,
+          submitted_at,
+          scored_at,
+          tasks!submissions_task_id_fkey (
+            id,
+            title,
+            description,
+            skill_area,
+            created_at
+          )
+        `
+      )
+      .eq('user_id', user.id)
+      .order('submitted_at', { ascending: false });
+
+    if (submissionsError) {
+      logger.error('❌ Failed to fetch user submissions for AI summary:', {
+        user_id: user.id,
+        error: submissionsError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch task history for summary',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Process submissions to get required fields
+    const taskHistory = (submissions || []).map((submission) => {
+      // Calculate points awarded (using CaBE v5 if breakdown exists, otherwise use score)
+      let pointsAwarded = 0;
+      if (submission.status === 'scored' && submission.score !== null) {
+        pointsAwarded = submission.score; // Default to score
+
+        // If we have points breakdown, use the actual points awarded
+        if (submission.points_breakdown) {
+          try {
+            const breakdown = JSON.parse(submission.points_breakdown);
+            pointsAwarded = breakdown.pointsAwarded || submission.score;
+          } catch (parseError) {
+            logger.warn('❌ Failed to parse points breakdown for AI summary:', {
+              submission_id: submission.id,
+              points_breakdown: submission.points_breakdown,
+            });
+          }
+        }
+      }
+
+      return {
+        task_title: submission.tasks?.title || 'Unknown Task',
+        score: submission.score,
+        points_awarded: pointsAwarded,
+        skill_area: submission.tasks?.skill_area || 'unknown',
+        submitted_at: submission.submitted_at,
+        scored_at: submission.scored_at,
+        status: submission.status,
+      };
+    });
+
+    // Filter to only scored tasks and cap at 25 most recent
+    const scoredTasks = taskHistory
+      .filter((task) => task.status === 'scored' && task.score !== null)
+      .slice(0, 25); // Cap at 25 most recent
+
+    // Handle edge case: no tasks completed
+    if (scoredTasks.length === 0) {
+      logger.info('📝 No completed tasks found for AI summary:', {
+        user_id: user.id,
+        totalTasks: taskHistory.length,
+        scoredTasks: 0,
+      });
+
+      return res.status(200).json({
+        success: true,
+        summary:
+          "You haven't completed any tasks yet. Start exploring tasks in the Arena!",
+        timestamp: new Date().toISOString(),
+        user: {
+          id: user.id,
+          email: user.email,
+          rankLevel: user.rankLevel,
+          points: user.points,
+        },
+        context: {
+          totalTasks: taskHistory.length,
+          scoredTasks: 0,
+          completionRate: 0,
+          averageScore: 0,
+          totalPoints: 0,
+          topSkillAreas: [],
+          rank: user.rankLevel,
+          points: user.points,
+        },
+      });
+    }
+
+    // Calculate analytics data for AI prompt
+    const totalTasks = taskHistory.length;
+    const completedTasks = scoredTasks.length;
+    const completionRate =
+      totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+    const averageScore =
+      Math.round(
+        (scoredTasks.reduce((sum, task) => sum + task.score, 0) /
+          scoredTasks.length) *
+          100
+      ) / 100;
+    const totalPoints = scoredTasks.reduce(
+      (sum, task) => sum + task.points_awarded,
+      0
+    );
+
+    // Calculate top skill areas
+    const skillStats = scoredTasks.reduce(
+      (acc, task) => {
+        const skill = task.skill_area;
+        if (!acc[skill]) {
+          acc[skill] = { count: 0, totalScore: 0, totalPoints: 0 };
+        }
+        acc[skill].count++;
+        acc[skill].totalScore += task.score;
+        acc[skill].totalPoints += task.points_awarded;
+        return acc;
+      },
+      {} as Record<
+        string,
+        { count: number; totalScore: number; totalPoints: number }
+      >
+    );
+
+    const topSkillAreas = Object.entries(skillStats)
+      .map(([skill, stats]) => ({
+        skill,
+        count: stats.count,
+        averageScore: Math.round((stats.totalScore / stats.count) * 100) / 100,
+        totalPoints: stats.totalPoints,
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3); // Top 3 skill areas
+
+    // Find highest scoring task
+    const highestScoringTask = scoredTasks.reduce((best, current) =>
+      current.score > best.score ? current : best
+    );
+
+    // Calculate time-based metrics
+    const recentTasks = scoredTasks.slice(0, 5); // Last 5 tasks
+    const averageCompletionTime =
+      recentTasks.length > 0
+        ? recentTasks.reduce((sum, task) => {
+            const submitted = new Date(task.submitted_at);
+            const scored = new Date(task.scored_at);
+            return sum + (scored.getTime() - submitted.getTime());
+          }, 0) / recentTasks.length
+        : 0;
+
+    // Prepare AI prompt context
+    const aiContext = {
+      rank: user.rankLevel,
+      points: user.points,
+      totalTasks,
+      completedTasks,
+      completionRate,
+      averageScore,
+      totalPoints,
+      topSkillAreas: topSkillAreas.map((skill) => ({
+        name: skill.skill,
+        count: skill.count,
+        averageScore: skill.averageScore,
+        totalPoints: skill.totalPoints,
+      })),
+      highestScoringTask: {
+        title: highestScoringTask.task_title,
+        score: highestScoringTask.score,
+        skillArea: highestScoringTask.skill_area,
+        pointsAwarded: highestScoringTask.points_awarded,
+      },
+      averageCompletionTime: Math.round(
+        averageCompletionTime / (1000 * 60 * 60 * 24)
+      ), // Days
+      recentPerformance: recentTasks.map((task) => ({
+        title: task.task_title,
+        score: task.score,
+        skillArea: task.skill_area,
+        pointsAwarded: task.points_awarded,
+      })),
+    };
+
+    // Generate AI summary using internal utility (mock implementation)
+    let aiSummary: string;
+    try {
+      aiSummary = await generateCareerProgressSummary(aiContext);
+    } catch (aiError) {
+      logger.error('❌ Failed to generate AI summary:', {
+        user_id: user.id,
+        error: aiError instanceof Error ? aiError.message : 'Unknown AI error',
+      });
+
+      return res.status(503).json({
+        success: false,
+        error: 'Summary not available at the moment.',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('✅ Successfully generated AI career summary:', {
+      user_id: user.id,
+      email: user.email,
+      totalTasks,
+      completedTasks,
+      averageScore,
+      summaryLength: aiSummary.length,
+    });
+
+    res.status(200).json({
+      success: true,
+      summary: aiSummary,
+      timestamp: new Date().toISOString(),
+      user: {
+        id: user.id,
+        email: user.email,
+        rankLevel: user.rankLevel,
+        points: user.points,
+      },
+      context: aiContext,
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena AI summary endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment ? errorMessage : 'Failed to generate AI summary',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Mock AI summary generation function (replace with actual OpenAI/GPT integration)
+async function generateCareerProgressSummary(context: any): Promise<string> {
+  // This is a mock implementation - replace with actual OpenAI/GPT API call
+  const {
+    rank,
+    points,
+    totalTasks,
+    completedTasks,
+    completionRate,
+    averageScore,
+    totalPoints,
+    topSkillAreas,
+    highestScoringTask,
+    averageCompletionTime,
+    recentPerformance,
+  } = context;
+
+  // Generate a personalized summary based on the context
+  let summary = `You've achieved ${rank} rank with ${points} total points! `;
+
+  if (completedTasks === 0) {
+    return "You haven't completed any tasks yet. Start exploring tasks in the Arena!";
+  }
+
+  // Add completion rate context
+  summary += `You've completed ${completedTasks} out of ${totalTasks} tasks (${completionRate}% completion rate). `;
+
+  // Add performance context
+  summary += `Your average score is ${averageScore}/100, demonstrating consistent quality in your submissions. `;
+
+  // Add skill area analysis
+  if (topSkillAreas.length > 0) {
+    const topSkill = topSkillAreas[0];
+    summary += `You've shown particular strength in ${topSkill.name} with ${topSkill.count} tasks completed and an average score of ${topSkill.averageScore}. `;
+  }
+
+  // Add highest scoring task
+  if (highestScoringTask) {
+    summary += `Your highest scoring task was "${highestScoringTask.title}" in ${highestScoringTask.skillArea} with a score of ${highestScoringTask.score}/100, earning you ${highestScoringTask.pointsAwarded} points. `;
+  }
+
+  // Add recent performance
+  if (recentPerformance.length > 0) {
+    const recentAvg = Math.round(
+      recentPerformance.reduce((sum, task) => sum + task.score, 0) /
+        recentPerformance.length
+    );
+    summary += `Your recent performance shows an average score of ${recentAvg}, indicating ${recentAvg > averageScore ? 'improvement' : 'consistent performance'}. `;
+  }
+
+  // Add completion time context if available
+  if (averageCompletionTime > 0) {
+    summary += `You typically complete tasks within ${averageCompletionTime} days, showing good time management. `;
+  }
+
+  // Add encouragement
+  summary += `Keep up the excellent work and continue challenging yourself with more complex tasks to reach the next rank!`;
+
+  return summary;
+}
+
+// POST /api/arena/reflection-summary - Generate reflection summary for single task submission
+router.post('/reflection-summary', attachUserRank, async (req, res) => {
+  try {
+    // At this point, req.user is guaranteed to exist from attachUserRank middleware
+    const user = req.user!;
+
+    const {
+      taskTitle,
+      score,
+      pointsAwarded,
+      skillArea,
+      submittedAt,
+      scoredAt,
+    } = req.body;
+
+    logger.info('🤔 Generating reflection summary for task submission', {
+      user_id: user.id,
+      email: user.email,
+      taskTitle,
+      score,
+      pointsAwarded,
+      skillArea,
+      submittedAt,
+      scoredAt,
+    });
+
+    // Validate required input fields
+    if (
+      !taskTitle ||
+      score === undefined ||
+      score === null ||
+      !pointsAwarded ||
+      !skillArea ||
+      !submittedAt ||
+      !scoredAt
+    ) {
+      logger.warn('❌ Missing required fields for reflection summary', {
+        user_id: user.id,
+        hasTaskTitle: !!taskTitle,
+        hasScore: score !== undefined && score !== null,
+        hasPointsAwarded: !!pointsAwarded,
+        hasSkillArea: !!skillArea,
+        hasSubmittedAt: !!submittedAt,
+        hasScoredAt: !!scoredAt,
+      });
+      return res.status(400).json({
+        success: false,
+        error:
+          'All fields are required: taskTitle, score, pointsAwarded, skillArea, submittedAt, scoredAt',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate score range
+    if (typeof score !== 'number' || score < 0 || score > 100) {
+      logger.warn('❌ Invalid score value for reflection summary', {
+        user_id: user.id,
+        score,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Score must be a number between 0 and 100',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate points awarded
+    if (typeof pointsAwarded !== 'number' || pointsAwarded < 0) {
+      logger.warn('❌ Invalid points awarded for reflection summary', {
+        user_id: user.id,
+        pointsAwarded,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Points awarded must be a non-negative number',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate dates
+    const submittedDate = new Date(submittedAt);
+    const scoredDate = new Date(scoredAt);
+
+    if (isNaN(submittedDate.getTime()) || isNaN(scoredDate.getTime())) {
+      logger.warn('❌ Invalid date format for reflection summary', {
+        user_id: user.id,
+        submittedAt,
+        scoredAt,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid date format for submittedAt or scoredAt',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Calculate duration in days
+    const durationMs = scoredDate.getTime() - submittedDate.getTime();
+    const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24));
+
+    // Determine effort level based on duration and score
+    let effortLevel = 'moderate';
+    if (durationDays <= 1 && score >= 80) {
+      effortLevel = 'excellent';
+    } else if (durationDays <= 2 && score >= 70) {
+      effortLevel = 'good';
+    } else if (durationDays > 3) {
+      effortLevel = 'thorough';
+    } else if (score < 60) {
+      effortLevel = 'needs improvement';
+    }
+
+    // Determine performance category
+    let performanceCategory = 'average';
+    if (score >= 90) {
+      performanceCategory = 'exceptional';
+    } else if (score >= 80) {
+      performanceCategory = 'strong';
+    } else if (score >= 70) {
+      performanceCategory = 'good';
+    } else if (score >= 60) {
+      performanceCategory = 'satisfactory';
+    } else {
+      performanceCategory = 'needs improvement';
+    }
+
+    // Prepare reflection context
+    const reflectionContext = {
+      taskTitle,
+      score,
+      pointsAwarded,
+      skillArea,
+      submittedAt,
+      scoredAt,
+      durationDays,
+      effortLevel,
+      performanceCategory,
+      userRank: user.rankLevel,
+      userPoints: user.points,
+    };
+
+    // Generate reflection using AI utility (mock implementation)
+    let reflection: string;
+    try {
+      reflection = await generateTaskReflection(reflectionContext);
+    } catch (aiError) {
+      logger.error('❌ Failed to generate reflection summary:', {
+        user_id: user.id,
+        error: aiError instanceof Error ? aiError.message : 'Unknown AI error',
+      });
+
+      return res.status(503).json({
+        success: false,
+        error: 'Reflection not available at the moment.',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('✅ Successfully generated reflection summary:', {
+      user_id: user.id,
+      email: user.email,
+      taskTitle,
+      score,
+      reflectionLength: reflection.length,
+    });
+
+    res.status(200).json({
+      success: true,
+      reflection,
+      timestamp: new Date().toISOString(),
+      meta: {
+        score,
+        skillArea,
+        duration: durationDays,
+        userRank: user.rankLevel,
+        pointsAwarded,
+        effortLevel,
+        performanceCategory,
+        taskTitle,
+      },
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena reflection summary endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to generate reflection summary',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Mock reflection generation function (replace with actual OpenAI/GPT integration)
+async function generateTaskReflection(context: any): Promise<string> {
+  // This is a mock implementation - replace with actual OpenAI/GPT API call
+  const {
+    taskTitle,
+    score,
+    pointsAwarded,
+    skillArea,
+    durationDays,
+    effortLevel,
+    performanceCategory,
+    userRank,
+    userPoints,
+  } = context;
+
+  // Generate a personalized reflection based on the context
+  let reflection = `You demonstrated ${performanceCategory} ${skillArea.toLowerCase()} skills with your ${score}/100 performance on "${taskTitle}". `;
+
+  // Add score-specific feedback
+  if (score >= 90) {
+    reflection += `Your exceptional score of ${score} showcases mastery of ${skillArea.toLowerCase()} concepts and attention to detail. `;
+  } else if (score >= 80) {
+    reflection += `Your strong score of ${score} reflects solid understanding and good implementation practices. `;
+  } else if (score >= 70) {
+    reflection += `Your good score of ${score} shows competent execution with room for enhancement. `;
+  } else if (score >= 60) {
+    reflection += `Your satisfactory score of ${score} indicates basic competency with opportunities for growth. `;
+  } else {
+    reflection += `Your score of ${score} suggests areas for improvement and additional practice needed. `;
+  }
+
+  // Add duration and effort context
+  if (durationDays === 0) {
+    reflection += `Completing this task within the same day shows excellent time management and quick problem-solving abilities. `;
+  } else if (durationDays === 1) {
+    reflection += `Finishing within a day demonstrates efficient work habits and focused effort. `;
+  } else if (durationDays <= 3) {
+    reflection += `Your ${effortLevel} approach over ${durationDays} days shows thoughtful consideration of the requirements. `;
+  } else {
+    reflection += `Taking ${durationDays} days reflects a thorough and deliberate approach to the task. `;
+  }
+
+  // Add points and rank context
+  reflection += `Earning ${pointsAwarded} points contributes to your ${userRank} rank and ${userPoints} total points. `;
+
+  // Add motivational closing
+  if (score >= 80) {
+    reflection += `Keep building on this momentum - you're making excellent progress in your ${skillArea.toLowerCase()} journey!`;
+  } else if (score >= 60) {
+    reflection += `Use this experience to identify areas for improvement and continue growing your ${skillArea.toLowerCase()} skills.`;
+  } else {
+    reflection += `Every challenge is an opportunity to learn. Review the feedback and try similar tasks to strengthen your ${skillArea.toLowerCase()} foundation.`;
+  }
+
+  return reflection;
+}
+
+// GET /api/arena/weekly-report - Get user's weekly performance report
+router.get('/weekly-report', attachUserRank, async (req, res) => {
+  try {
+    // At this point, req.user is guaranteed to exist from attachUserRank middleware
+    const user = req.user!;
+
+    logger.info('📊 Generating weekly performance report', {
+      user_id: user.id,
+      email: user.email,
+      currentRank: user.rankLevel,
+      currentPoints: user.points,
+    });
+
+    // Calculate the date range for the last 7 days (rolling)
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - 7);
+
+    logger.info('📅 Weekly report date range', {
+      user_id: user.id,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      daysInRange: 7,
+    });
+
+    // Fetch all task submissions within the last 7 days for the authenticated user
+    const { data: submissions, error: submissionsError } = await supabaseAdmin
+      .from('submissions')
+      .select(
+        `
+          id,
+          task_id,
+          status,
+          score,
+          points_breakdown,
+          submitted_at,
+          scored_at,
+          tasks!submissions_task_id_fkey (
+            id,
+            title,
+            description,
+            skill_area,
+            created_at
+          )
+        `
+      )
+      .eq('user_id', user.id)
+      .gte('submitted_at', startDate.toISOString())
+      .lte('submitted_at', endDate.toISOString())
+      .order('submitted_at', { ascending: false });
+
+    if (submissionsError) {
+      logger.error('❌ Failed to fetch weekly submissions:', {
+        user_id: user.id,
+        error: submissionsError?.message,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch weekly task data',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Process submissions to get required fields
+    const weeklySubmissions = (submissions || []).map((submission) => {
+      // Calculate points awarded (using CaBE v5 if breakdown exists, otherwise use score)
+      let pointsAwarded = 0;
+      if (submission.status === 'scored' && submission.score !== null) {
+        pointsAwarded = submission.score; // Default to score
+
+        // If we have points breakdown, use the actual points awarded
+        if (submission.points_breakdown) {
+          try {
+            const breakdown = JSON.parse(submission.points_breakdown);
+            pointsAwarded = breakdown.pointsAwarded || submission.score;
+          } catch (parseError) {
+            logger.warn(
+              '❌ Failed to parse points breakdown for weekly report:',
+              {
+                submission_id: submission.id,
+                points_breakdown: submission.points_breakdown,
+              }
+            );
+          }
+        }
+      }
+
+      return {
+        task_title: submission.tasks?.title || 'Unknown Task',
+        score: submission.score,
+        points_awarded: pointsAwarded,
+        skill_area: submission.tasks?.skill_area || 'unknown',
+        submitted_at: submission.submitted_at,
+        scored_at: submission.scored_at,
+        status: submission.status,
+      };
+    });
+
+    // Filter only scored submissions
+    const scoredSubmissions = weeklySubmissions.filter(
+      (submission) =>
+        submission.status === 'scored' && submission.score !== null
+    );
+
+    logger.info('📈 Weekly submissions analysis', {
+      user_id: user.id,
+      totalSubmissions: weeklySubmissions.length,
+      scoredSubmissions: scoredSubmissions.length,
+      pendingSubmissions: weeklySubmissions.filter(
+        (s) => s.status === 'pending'
+      ).length,
+      flaggedSubmissions: weeklySubmissions.filter(
+        (s) => s.status === 'flagged'
+      ).length,
+    });
+
+    // Calculate weekly performance metrics
+    const completedTasks = scoredSubmissions.length;
+    const averageScore =
+      completedTasks > 0
+        ? Math.round(
+            (scoredSubmissions.reduce((sum, task) => sum + task.score, 0) /
+              completedTasks) *
+              100
+          ) / 100
+        : 0;
+    const totalPoints = scoredSubmissions.reduce(
+      (sum, task) => sum + task.points_awarded,
+      0
+    );
+
+    // Calculate top skill area this week
+    const skillAreaStats = scoredSubmissions.reduce(
+      (acc, task) => {
+        const skill = task.skill_area;
+        if (!acc[skill]) {
+          acc[skill] = { count: 0, totalScore: 0, totalPoints: 0 };
+        }
+        acc[skill].count++;
+        acc[skill].totalScore += task.score;
+        acc[skill].totalPoints += task.points_awarded;
+        return acc;
+      },
+      {} as Record<
+        string,
+        { count: number; totalScore: number; totalPoints: number }
+      >
+    );
+
+    const topSkillArea =
+      Object.keys(skillAreaStats).length > 0
+        ? Object.entries(skillAreaStats)
+            .map(([skill, stats]) => ({
+              skill,
+              count: stats.count,
+              averageScore:
+                Math.round((stats.totalScore / stats.count) * 100) / 100,
+              totalPoints: stats.totalPoints,
+            }))
+            .sort((a, b) => b.count - a.count)[0].skill
+        : 'none';
+
+    // Find best performing task
+    const bestTask =
+      scoredSubmissions.length > 0
+        ? scoredSubmissions.reduce((best, current) =>
+            current.score > best.score ? current : best
+          )
+        : null;
+
+    // Prepare AI-ready context summary
+    const aiContext = {
+      period: 'weekly',
+      dateRange: {
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+        days: 7,
+      },
+      user: {
+        id: user.id,
+        email: user.email,
+        rank: user.rankLevel,
+        points: user.points,
+      },
+      performance: {
+        completedTasks,
+        averageScore,
+        totalPoints,
+        topSkillArea,
+        bestTask: bestTask
+          ? {
+              title: bestTask.task_title,
+              score: bestTask.score,
+              points: bestTask.points_awarded,
+              skillArea: bestTask.skill_area,
+            }
+          : null,
+      },
+      skillBreakdown: Object.entries(skillAreaStats).map(([skill, stats]) => ({
+        skill,
+        count: stats.count,
+        averageScore: Math.round((stats.totalScore / stats.count) * 100) / 100,
+        totalPoints: stats.totalPoints,
+      })),
+      submissions: scoredSubmissions.map((task) => ({
+        title: task.task_title,
+        score: task.score,
+        points: task.points_awarded,
+        skillArea: task.skill_area,
+        submittedAt: task.submitted_at,
+        scoredAt: task.scored_at,
+      })),
+    };
+
+    logger.info('✅ Successfully generated weekly performance report:', {
+      user_id: user.id,
+      email: user.email,
+      completedTasks,
+      averageScore,
+      totalPoints,
+      topSkillArea,
+      bestTaskScore: bestTask?.score || 0,
+      dateRange: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
+    });
+
+    res.status(200).json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      summary: {
+        completedTasks,
+        averageScore,
+        totalPoints,
+        topSkillArea,
+        bestTask: bestTask
+          ? {
+              title: bestTask.task_title,
+              score: bestTask.score,
+              points: bestTask.points_awarded,
+            }
+          : null,
+      },
+      user: {
+        rank: user.rankLevel,
+        points: user.points,
+      },
+      // Additional context for potential AI integration
+      context: {
+        period: 'weekly',
+        dateRange: {
+          start: startDate.toISOString(),
+          end: endDate.toISOString(),
+          days: 7,
+        },
+        skillBreakdown: Object.entries(skillAreaStats).map(
+          ([skill, stats]) => ({
+            skill,
+            count: stats.count,
+            averageScore:
+              Math.round((stats.totalScore / stats.count) * 100) / 100,
+            totalPoints: stats.totalPoints,
+          })
+        ),
+        submissions: scoredSubmissions.map((task) => ({
+          title: task.task_title,
+          score: task.score,
+          points: task.points_awarded,
+          skillArea: task.skill_area,
+          submittedAt: task.submitted_at,
+          scoredAt: task.scored_at,
+        })),
+      },
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena weekly report endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to generate weekly report',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/user-progress - Get user's all-time performance progress
+router.get('/user-progress', attachUserRank, async (req, res) => {
+  try {
+    // At this point, req.user is guaranteed to exist from attachUserRank middleware
+    const user = req.user!;
+
+    logger.info('📈 Generating all-time user progress report', {
+      user_id: user.id,
+      email: user.email,
+      currentRank: user.rankLevel,
+      currentPoints: user.points,
+    });
+
+    // Fetch all scored submissions for the authenticated user
+    const { data: submissions, error: submissionsError } = await supabaseAdmin
+      .from('submissions')
+      .select(
+        `
+          id,
+          task_id,
+          status,
+          score,
+          points_breakdown,
+          submitted_at,
+          scored_at,
+          tasks!submissions_task_id_fkey (
+            id,
+            title,
+            description,
+            skill_area,
+            created_at
+          )
+        `
+      )
+      .eq('user_id', user.id)
+      .eq('status', 'scored')
+      .not('score', 'is', null)
+      .order('submitted_at', { ascending: true }); // Chronological order for trend analysis
+
+    if (submissionsError) {
+      logger.error('❌ Failed to fetch user progress data:', {
+        user_id: user.id,
+        error: submissionsError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch user progress data',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Process submissions to get required fields
+    const scoredSubmissions = (submissions || []).map((submission) => {
+      // Calculate points awarded (using CaBE v5 if breakdown exists, otherwise use score)
+      let pointsAwarded = submission.score; // Default to score
+
+      // If we have points breakdown, use the actual points awarded
+      if (submission.points_breakdown) {
+        try {
+          const breakdown = JSON.parse(submission.points_breakdown);
+          pointsAwarded = breakdown.pointsAwarded || submission.score;
+        } catch (parseError) {
+          logger.warn(
+            '❌ Failed to parse points breakdown for user progress:',
+            {
+              submission_id: submission.id,
+              points_breakdown: submission.points_breakdown,
+            }
+          );
+        }
+      }
+
+      return {
+        task_title: submission.tasks?.title || 'Unknown Task',
+        score: submission.score,
+        points_awarded: pointsAwarded,
+        skill_area: submission.tasks?.skill_area || 'unknown',
+        submitted_at: submission.submitted_at,
+        scored_at: submission.scored_at,
+        status: submission.status,
+      };
+    });
+
+    logger.info('📊 User progress analysis', {
+      user_id: user.id,
+      totalScoredSubmissions: scoredSubmissions.length,
+      dateRange:
+        scoredSubmissions.length > 0
+          ? {
+              firstSubmission: scoredSubmissions[0].submitted_at,
+              lastSubmission:
+                scoredSubmissions[scoredSubmissions.length - 1].submitted_at,
+            }
+          : 'No submissions',
+    });
+
+    // Calculate overall performance metrics
+    const totalTasks = scoredSubmissions.length;
+    const totalPoints = scoredSubmissions.reduce(
+      (sum, task) => sum + task.points_awarded,
+      0
+    );
+    const averageScore =
+      totalTasks > 0
+        ? Math.round(
+            (scoredSubmissions.reduce((sum, task) => sum + task.score, 0) /
+              totalTasks) *
+              100
+          ) / 100
+        : 0;
+
+    // Calculate skill area-wise distribution
+    const skillAreaStats = scoredSubmissions.reduce(
+      (acc, task) => {
+        const skill = task.skill_area;
+        if (!acc[skill]) {
+          acc[skill] = {
+            count: 0,
+            totalScore: 0,
+            totalPoints: 0,
+            scores: [], // For calculating consistency
+          };
+        }
+        acc[skill].count++;
+        acc[skill].totalScore += task.score;
+        acc[skill].totalPoints += task.points_awarded;
+        acc[skill].scores.push(task.score);
+        return acc;
+      },
+      {} as Record<
+        string,
+        {
+          count: number;
+          totalScore: number;
+          totalPoints: number;
+          scores: number[];
+        }
+      >
+    );
+
+    // Process skill breakdown with additional metrics
+    const skillBreakdown = Object.entries(skillAreaStats)
+      .map(([skill, stats]) => {
+        const averageScore =
+          Math.round((stats.totalScore / stats.count) * 100) / 100;
+
+        // Calculate consistency (standard deviation of scores)
+        const mean = stats.totalScore / stats.count;
+        const variance =
+          stats.scores.reduce(
+            (sum, score) => sum + Math.pow(score - mean, 2),
+            0
+          ) / stats.count;
+        const consistency = Math.round((100 - Math.sqrt(variance)) * 100) / 100; // Higher is more consistent
+
+        return {
+          skill,
+          count: stats.count,
+          averageScore,
+          totalPoints: stats.totalPoints,
+          consistency: Math.max(0, consistency), // Ensure non-negative
+          scores: stats.scores, // Include for potential charting
+        };
+      })
+      .sort((a, b) => {
+        // Sort by average score first, then by consistency
+        if (Math.abs(a.averageScore - b.averageScore) < 0.1) {
+          return b.consistency - a.consistency;
+        }
+        return b.averageScore - a.averageScore;
+      });
+
+    // Determine best skill area (by average score and consistency)
+    const bestSkillArea =
+      skillBreakdown.length > 0 ? skillBreakdown[0].skill : 'none';
+
+    // Calculate weekly trend data for charting
+    const weeklyTrend = calculateWeeklyTrend(scoredSubmissions);
+
+    logger.info('✅ Successfully generated all-time user progress:', {
+      user_id: user.id,
+      email: user.email,
+      totalTasks,
+      totalPoints,
+      averageScore,
+      bestSkillArea,
+      skillAreas: skillBreakdown.length,
+      weeklyDataPoints: weeklyTrend.weeks.length,
+    });
+
+    res.status(200).json({
+      success: true,
+      summary: {
+        totalTasks,
+        totalPoints,
+        averageScore,
+        bestSkillArea,
+      },
+      skillBreakdown: skillBreakdown.map((skill) => ({
+        skill: skill.skill,
+        count: skill.count,
+        averageScore: skill.averageScore,
+        totalPoints: skill.totalPoints,
+        consistency: skill.consistency,
+      })),
+      trend: weeklyTrend,
+      user: {
+        rank: user.rankLevel,
+        points: user.points,
+      },
+      // Additional context for potential AI integration
+      context: {
+        totalSubmissions: scoredSubmissions.length,
+        dateRange:
+          scoredSubmissions.length > 0
+            ? {
+                firstSubmission: scoredSubmissions[0].submitted_at,
+                lastSubmission:
+                  scoredSubmissions[scoredSubmissions.length - 1].submitted_at,
+                daysActive: Math.ceil(
+                  (new Date(
+                    scoredSubmissions[scoredSubmissions.length - 1].submitted_at
+                  ).getTime() -
+                    new Date(scoredSubmissions[0].submitted_at).getTime()) /
+                    (1000 * 60 * 60 * 24)
+                ),
+              }
+            : null,
+        performanceMetrics: {
+          totalTasks,
+          totalPoints,
+          averageScore,
+          bestSkillArea,
+          skillAreas: skillBreakdown.length,
+        },
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena user progress endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to generate user progress report',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Helper function to calculate weekly trend data
+function calculateWeeklyTrend(submissions: any[]): {
+  weeks: Array<{
+    week: string;
+    avgScore: number;
+    totalPoints: number;
+    taskCount: number;
+  }>;
+} {
+  if (submissions.length === 0) {
+    return { weeks: [] };
+  }
+
+  // Group submissions by week
+  const weeklyData = submissions.reduce(
+    (acc, submission) => {
+      const date = new Date(submission.submitted_at);
+      const weekStart = new Date(date);
+      weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
+
+      const weekKey = `${weekStart.getFullYear()}-W${String(Math.ceil((weekStart.getDate() + weekStart.getDay()) / 7)).padStart(2, '0')}`;
+
+      if (!acc[weekKey]) {
+        acc[weekKey] = {
+          scores: [],
+          points: [],
+          tasks: [],
+        };
+      }
+
+      acc[weekKey].scores.push(submission.score);
+      acc[weekKey].points.push(submission.points_awarded);
+      acc[weekKey].tasks.push(submission);
+
+      return acc;
+    },
+    {} as Record<string, { scores: number[]; points: number[]; tasks: any[] }>
+  );
+
+  // Convert to array format and calculate averages
+  const weeks = Object.entries(weeklyData)
+    .map(([week, data]) => ({
+      week,
+      avgScore:
+        Math.round(
+          (data.scores.reduce((sum, score) => sum + score, 0) /
+            data.scores.length) *
+            100
+        ) / 100,
+      totalPoints: data.points.reduce((sum, points) => sum + points, 0),
+      taskCount: data.tasks.length,
+    }))
+    .sort((a, b) => a.week.localeCompare(b.week)); // Sort chronologically
+
+  return { weeks };
+}
+
+// GET /api/arena/monthly-review - Get user's monthly performance review
+router.get('/monthly-review', attachUserRank, async (req, res) => {
+  try {
+    // At this point, req.user is guaranteed to exist from attachUserRank middleware
+    const user = req.user!;
+
+    logger.info('📅 Generating monthly performance review', {
+      user_id: user.id,
+      email: user.email,
+      currentRank: user.rankLevel,
+      currentPoints: user.points,
+    });
+
+    // Calculate the last full month date range
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+
+    // Get the first day of the previous month
+    const startDate = new Date(currentYear, currentMonth - 1, 1);
+    // Get the last day of the previous month
+    const endDate = new Date(currentYear, currentMonth, 0);
+
+    logger.info('📅 Monthly review date range', {
+      user_id: user.id,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      month: startDate.toLocaleDateString('en-US', {
+        month: 'long',
+        year: 'numeric',
+      }),
+    });
+
+    // Fetch all scored submissions for the last full month
+    const { data: submissions, error: submissionsError } = await supabaseAdmin
+      .from('submissions')
+      .select(
+        `
+          id,
+          task_id,
+          status,
+          score,
+          points_breakdown,
+          submitted_at,
+          scored_at,
+          tasks!submissions_task_id_fkey (
+            id,
+            title,
+            description,
+            skill_area,
+            created_at
+          )
+        `
+      )
+      .eq('user_id', user.id)
+      .eq('status', 'scored')
+      .not('score', 'is', null)
+      .gte('submitted_at', startDate.toISOString())
+      .lte('submitted_at', endDate.toISOString())
+      .order('submitted_at', { ascending: true });
+
+    if (submissionsError) {
+      logger.error('❌ Failed to fetch monthly submissions:', {
+        user_id: user.id,
+        error: submissionsError?.message,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch monthly task data',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Process submissions to get required fields
+    const monthlySubmissions = (submissions || []).map((submission) => {
+      // Calculate points awarded (using CaBE v5 if breakdown exists, otherwise use score)
+      let pointsAwarded = submission.score; // Default to score
+
+      // If we have points breakdown, use the actual points awarded
+      if (submission.points_breakdown) {
+        try {
+          const breakdown = JSON.parse(submission.points_breakdown);
+          pointsAwarded = breakdown.pointsAwarded || submission.score;
+        } catch (parseError) {
+          logger.warn(
+            '❌ Failed to parse points breakdown for monthly review:',
+            {
+              submission_id: submission.id,
+              points_breakdown: submission.points_breakdown,
+            }
+          );
+        }
+      }
+
+      return {
+        task_title: submission.tasks?.title || 'Unknown Task',
+        score: submission.score,
+        points_awarded: pointsAwarded,
+        skill_area: submission.tasks?.skill_area || 'unknown',
+        submitted_at: submission.submitted_at,
+        scored_at: submission.scored_at,
+        status: submission.status,
+      };
+    });
+
+    logger.info('📊 Monthly submissions analysis', {
+      user_id: user.id,
+      totalSubmissions: monthlySubmissions.length,
+      month: startDate.toLocaleDateString('en-US', {
+        month: 'long',
+        year: 'numeric',
+      }),
+    });
+
+    // Calculate monthly performance metrics
+    const monthlyCompletedTasks = monthlySubmissions.length;
+    const monthlyAverageScore =
+      monthlyCompletedTasks > 0
+        ? Math.round(
+            (monthlySubmissions.reduce((sum, task) => sum + task.score, 0) /
+              monthlyCompletedTasks) *
+              100
+          ) / 100
+        : 0;
+    const monthlyTotalPoints = monthlySubmissions.reduce(
+      (sum, task) => sum + task.points_awarded,
+      0
+    );
+
+    // Calculate skill area performance for the month
+    const skillAreaStats = monthlySubmissions.reduce(
+      (acc, task) => {
+        const skill = task.skill_area;
+        if (!acc[skill]) {
+          acc[skill] = {
+            count: 0,
+            totalScore: 0,
+            totalPoints: 0,
+            scores: [], // For consistency calculation
+          };
+        }
+        acc[skill].count++;
+        acc[skill].totalScore += task.score;
+        acc[skill].totalPoints += task.points_awarded;
+        acc[skill].scores.push(task.score);
+        return acc;
+      },
+      {} as Record<
+        string,
+        {
+          count: number;
+          totalScore: number;
+          totalPoints: number;
+          scores: number[];
+        }
+      >
+    );
+
+    // Calculate consistency score (overall standard deviation)
+    let consistencyScore = 100; // Default to perfect consistency
+    if (monthlySubmissions.length > 1) {
+      const mean =
+        monthlySubmissions.reduce((sum, task) => sum + task.score, 0) /
+        monthlySubmissions.length;
+      const variance =
+        monthlySubmissions.reduce(
+          (sum, task) => sum + Math.pow(task.score - mean, 2),
+          0
+        ) / monthlySubmissions.length;
+      const stdDev = Math.sqrt(variance);
+      consistencyScore = Math.round((100 - stdDev) * 100) / 100; // Higher is more consistent
+      consistencyScore = Math.max(0, consistencyScore); // Ensure non-negative
+    }
+
+    // Find best task of the month
+    const bestTaskOfMonth =
+      monthlySubmissions.length > 0
+        ? monthlySubmissions.reduce((best, current) =>
+            current.score > best.score ? current : best
+          )
+        : null;
+
+    // Determine most improved skill (mock implementation - would need previous month data)
+    const mostImprovedSkill =
+      Object.keys(skillAreaStats).length > 0
+        ? Object.entries(skillAreaStats)
+            .map(([skill, stats]) => ({
+              skill,
+              averageScore:
+                Math.round((stats.totalScore / stats.count) * 100) / 100,
+              count: stats.count,
+            }))
+            .sort((a, b) => b.averageScore - a.averageScore)[0].skill
+        : 'none';
+
+    // Generate AI review (mock implementation)
+    const aiReview = generateMonthlyAIReview({
+      monthlyCompletedTasks,
+      monthlyAverageScore,
+      monthlyTotalPoints,
+      mostImprovedSkill,
+      consistencyScore,
+      skillAreaStats,
+      userRank: user.rankLevel,
+      currentPoints: user.points,
+    });
+
+    logger.info('✅ Successfully generated monthly review:', {
+      user_id: user.id,
+      email: user.email,
+      monthlyCompletedTasks,
+      monthlyAverageScore,
+      monthlyTotalPoints,
+      mostImprovedSkill,
+      consistencyScore,
+      bestTaskScore: bestTaskOfMonth?.score || 0,
+      month: startDate.toLocaleDateString('en-US', {
+        month: 'long',
+        year: 'numeric',
+      }),
+    });
+
+    res.status(200).json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      summary: {
+        monthlyCompletedTasks,
+        monthlyAverageScore,
+        monthlyTotalPoints,
+        mostImprovedSkill,
+        consistencyScore,
+        bestTaskOfMonth: bestTaskOfMonth
+          ? {
+              title: bestTaskOfMonth.task_title,
+              score: bestTaskOfMonth.score,
+              points: bestTaskOfMonth.points_awarded,
+              submittedAt: bestTaskOfMonth.submitted_at,
+            }
+          : null,
+      },
+      aiReview,
+      context: {
+        userRank: user.rankLevel,
+        currentPoints: user.points,
+        dateRange: {
+          start: startDate.toISOString().split('T')[0],
+          end: endDate.toISOString().split('T')[0],
+        },
+      },
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena monthly review endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to generate monthly review',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Mock AI review generation function
+function generateMonthlyAIReview(context: any): {
+  summary: string;
+  suggestions: string[];
+} {
+  const {
+    monthlyCompletedTasks,
+    monthlyAverageScore,
+    monthlyTotalPoints,
+    mostImprovedSkill,
+    consistencyScore,
+    skillAreaStats,
+    userRank,
+    currentPoints,
+  } = context;
+
+  // Generate summary based on performance
+  let summary = '';
+
+  if (monthlyCompletedTasks === 0) {
+    summary =
+      'No tasks completed this month. Consider starting with some beginner-friendly challenges to build momentum!';
+  } else if (monthlyCompletedTasks >= 8) {
+    summary = `Excellent productivity this month! You completed ${monthlyCompletedTasks} tasks with a strong average score of ${monthlyAverageScore}.`;
+  } else if (monthlyCompletedTasks >= 4) {
+    summary = `Good progress this month! You completed ${monthlyCompletedTasks} tasks with an average score of ${monthlyAverageScore}.`;
+  } else {
+    summary = `You completed ${monthlyCompletedTasks} tasks this month with an average score of ${monthlyAverageScore}.`;
+  }
+
+  if (mostImprovedSkill !== 'none') {
+    summary += ` Your ${mostImprovedSkill} skills showed notable improvement.`;
+  }
+
+  if (consistencyScore >= 85) {
+    summary +=
+      ' Your consistency is outstanding - keep up this steady performance!';
+  } else if (consistencyScore >= 70) {
+    summary += ' Your consistency is good, with room for improvement.';
+  } else {
+    summary +=
+      ' Focus on maintaining more consistent performance across tasks.';
+  }
+
+  // Generate personalized suggestions
+  const suggestions: string[] = [];
+
+  // Suggestion based on task count
+  if (monthlyCompletedTasks < 4) {
+    suggestions.push(
+      'Aim for at least 4-6 tasks per month to maintain steady progress and skill development.'
+    );
+  } else if (monthlyCompletedTasks < 8) {
+    suggestions.push(
+      'Consider increasing your task frequency to 8+ tasks per month for accelerated growth.'
+    );
+  }
+
+  // Suggestion based on consistency
+  if (consistencyScore < 75) {
+    suggestions.push(
+      'Work on maintaining more consistent scores by reviewing feedback and practicing similar task types.'
+    );
+  }
+
+  // Suggestion based on skill diversity
+  const skillCount = Object.keys(skillAreaStats).length;
+  if (skillCount < 2) {
+    suggestions.push(
+      'Try diversifying your skills by attempting tasks in different areas to build a well-rounded portfolio.'
+    );
+  } else if (skillCount >= 3) {
+    suggestions.push(
+      'Great skill diversity! Consider focusing on your strongest areas to achieve mastery.'
+    );
+  }
+
+  // Suggestion based on score level
+  if (monthlyAverageScore < 70) {
+    suggestions.push(
+      'Review your completed tasks and focus on areas where you can improve your implementation quality.'
+    );
+  } else if (monthlyAverageScore >= 85) {
+    suggestions.push(
+      'Your high scores indicate strong skills - challenge yourself with more complex tasks to push your limits.'
+    );
+  }
+
+  // Ensure we have exactly 3 suggestions
+  while (suggestions.length < 3) {
+    suggestions.push(
+      'Maintain your current momentum and stay consistent with your learning routine.'
+    );
+  }
+
+  return {
+    summary,
+    suggestions: suggestions.slice(0, 3),
+  };
+}
+
+// GET /api/arena/leaderboard/skill - Get leaderboard filtered by skill area and optional rank
+router.get('/leaderboard/skill', attachUserRank, async (req, res) => {
+  try {
+    const { skill, rank, limit = 10 } = req.query;
+
+    // Validate skill parameter
+    const validSkills = ['frontend', 'backend', 'content', 'data'];
+    if (!skill || !validSkills.includes(skill as string)) {
+      logger.warn('❌ Invalid skill parameter provided:', {
+        skill,
+        validSkills,
+      });
+      return res.status(400).json({
+        success: false,
+        error: `Invalid skill parameter. Must be one of: ${validSkills.join(', ')}`,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate rank parameter if provided
+    const validRanks = ['bronze', 'silver', 'gold', 'platinum'];
+    if (rank && !validRanks.includes(rank as string)) {
+      logger.warn('❌ Invalid rank parameter provided:', { rank, validRanks });
+      return res.status(400).json({
+        success: false,
+        error: `Invalid rank parameter. Must be one of: ${validRanks.join(', ')}`,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate and parse limit
+    const parsedLimit = Math.min(
+      Math.max(parseInt(limit as string) || 10, 1),
+      100
+    );
+
+    logger.info('🏆 Fetching skill-specific leaderboard:', {
+      skill,
+      rank: rank || 'all',
+      limit: parsedLimit,
+      user_id: req.user?.id,
+    });
+
+    // Build the query to get users with their submissions in the specified skill area
+    let query = supabaseAdmin
+      .from('users')
+      .select(
+        `
+          id,
+          email,
+          username,
+          points,
+          rank_level,
+          created_at,
+          submissions!submissions_user_id_fkey (
+            id,
+            status,
+            score,
+            submitted_at,
+            tasks!submissions_task_id_fkey (
+              id,
+              skill_area
+            )
+          )
+        `
+      )
+      .not('id', 'is', null);
+
+    // Apply rank filter if specified
+    if (rank) {
+      query = query.eq('rank_level', rank);
+    }
+
+    const { data: users, error: usersError } = await query;
+
+    if (usersError) {
+      logger.error('❌ Failed to fetch users for skill leaderboard:', {
+        skill,
+        rank,
+        error: usersError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch leaderboard data',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Process users and calculate skill-specific metrics
+    const skillLeaderboard = (users || [])
+      .map((user) => {
+        // Filter submissions for the specified skill area
+        const skillSubmissions = (user.submissions || []).filter(
+          (submission) =>
+            submission.status === 'scored' &&
+            submission.score !== null &&
+            submission.tasks?.skill_area === skill
+        );
+
+        // Skip users with no scored submissions in this skill area
+        if (skillSubmissions.length === 0) {
+          return null;
+        }
+
+        // Calculate skill-specific metrics
+        const totalScore = skillSubmissions.reduce(
+          (sum, submission) => sum + submission.score,
+          0
+        );
+        const tasksCompleted = skillSubmissions.length;
+        const lastActive = skillSubmissions.reduce((latest, submission) =>
+          new Date(submission.submitted_at) > new Date(latest.submitted_at)
+            ? submission
+            : latest
+        ).submitted_at;
+
+        // Calculate average score for this skill area
+        const averageScore =
+          Math.round((totalScore / tasksCompleted) * 100) / 100;
+
+        return {
+          userId: user.id,
+          username: user.username || user.email?.split('@')[0] || 'Anonymous',
+          userRank: user.rank_level || 'bronze',
+          totalScore,
+          averageScore,
+          tasksCompleted,
+          lastActive,
+          userEmail: user.email,
+        };
+      })
+      .filter((entry) => entry !== null) // Remove null entries
+      .sort((a, b) => {
+        // Primary sort: total score (descending)
+        if (b.totalScore !== a.totalScore) {
+          return b.totalScore - a.totalScore;
+        }
+        // Secondary sort: average score (descending)
+        if (b.averageScore !== a.averageScore) {
+          return b.averageScore - a.averageScore;
+        }
+        // Tertiary sort: last active (descending)
+        return (
+          new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime()
+        );
+      })
+      .slice(0, parsedLimit); // Apply limit
+
+    logger.info('✅ Successfully generated skill leaderboard:', {
+      skill,
+      rank: rank || 'all',
+      totalUsers: skillLeaderboard.length,
+      limit: parsedLimit,
+      topScore:
+        skillLeaderboard.length > 0 ? skillLeaderboard[0].totalScore : 0,
+    });
+
+    res.status(200).json({
+      success: true,
+      leaderboard: skillLeaderboard,
+      filters: {
+        skill,
+        rank: rank || 'all',
+        limit: parsedLimit,
+      },
+      summary: {
+        totalUsers: skillLeaderboard.length,
+        topScore:
+          skillLeaderboard.length > 0 ? skillLeaderboard[0].totalScore : 0,
+        averageScore:
+          skillLeaderboard.length > 0
+            ? Math.round(
+                (skillLeaderboard.reduce(
+                  (sum, user) => sum + user.averageScore,
+                  0
+                ) /
+                  skillLeaderboard.length) *
+                  100
+              ) / 100
+            : 0,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena skill leaderboard endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to fetch skill leaderboard',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// POST /api/arena/feedback - Submit user feedback on a task
+router.post('/feedback', attachUserRank, async (req, res) => {
+  try {
+    // At this point, req.user is guaranteed to exist from attachUserRank middleware
+    const user = req.user!;
+
+    const { task_id, rating, comment } = req.body;
+
+    logger.info('📝 User submitting task feedback:', {
+      user_id: user.id,
+      email: user.email,
+      task_id,
+      rating,
+      hasComment: !!comment,
+    });
+
+    // Validate required fields
+    if (!task_id) {
+      logger.warn('❌ Missing task_id in feedback submission:', {
+        user_id: user.id,
+        task_id,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'task_id is required',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (
+      !rating ||
+      typeof rating !== 'number' ||
+      rating < 1 ||
+      rating > 5 ||
+      !Number.isInteger(rating)
+    ) {
+      logger.warn('❌ Invalid rating in feedback submission:', {
+        user_id: user.id,
+        task_id,
+        rating,
+        ratingType: typeof rating,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'rating must be an integer from 1 to 5',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate comment length if provided
+    if (comment && typeof comment === 'string' && comment.length > 1000) {
+      logger.warn('❌ Comment too long in feedback submission:', {
+        user_id: user.id,
+        task_id,
+        commentLength: comment.length,
+        maxLength: 1000,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'comment must be 1000 characters or less',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate that the task exists
+    const { data: task, error: taskError } = await supabaseAdmin
+      .from('tasks')
+      .select('id, title, skill_area')
+      .eq('id', task_id)
+      .single();
+
+    if (taskError || !task) {
+      logger.warn('❌ Invalid task_id in feedback submission:', {
+        user_id: user.id,
+        task_id,
+        error: taskError?.message,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid task_id provided',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('✅ Task validation successful:', {
+      user_id: user.id,
+      task_id,
+      task_title: task.title,
+      skill_area: task.skill_area,
+    });
+
+    // Check if user has already submitted feedback for this task
+    const { data: existingFeedback, error: checkError } = await supabaseAdmin
+      .from('task_feedback')
+      .select('id, rating, comment, submitted_at')
+      .eq('user_id', user.id)
+      .eq('task_id', task_id)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      // PGRST116 is "not found" error
+      logger.error('❌ Error checking existing feedback:', {
+        user_id: user.id,
+        task_id,
+        error: checkError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to check existing feedback',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    let result;
+    let isUpdate = false;
+
+    if (existingFeedback) {
+      // Update existing feedback
+      logger.info('🔄 Updating existing feedback:', {
+        user_id: user.id,
+        task_id,
+        existing_rating: existingFeedback.rating,
+        new_rating: rating,
+        feedback_id: existingFeedback.id,
+      });
+
+      const { data: updateData, error: updateError } = await supabaseAdmin
+        .from('task_feedback')
+        .update({
+          rating,
+          comment: comment || null,
+          submitted_at: new Date().toISOString(),
+        })
+        .eq('id', existingFeedback.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        logger.error('❌ Failed to update feedback:', {
+          user_id: user.id,
+          task_id,
+          feedback_id: existingFeedback.id,
+          error: updateError?.message,
+        });
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to update feedback',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      result = updateData;
+      isUpdate = true;
+    } else {
+      // Insert new feedback
+      logger.info('➕ Creating new feedback:', {
+        user_id: user.id,
+        task_id,
+        rating,
+        hasComment: !!comment,
+      });
+
+      const { data: insertData, error: insertError } = await supabaseAdmin
+        .from('task_feedback')
+        .insert({
+          user_id: user.id,
+          task_id,
+          rating,
+          comment: comment || null,
+          submitted_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        logger.error('❌ Failed to insert feedback:', {
+          user_id: user.id,
+          task_id,
+          error: insertError?.message,
+        });
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to submit feedback',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      result = insertData;
+    }
+
+    logger.info('✅ Feedback successfully submitted:', {
+      user_id: user.id,
+      email: user.email,
+      task_id,
+      task_title: task.title,
+      rating,
+      isUpdate,
+      feedback_id: result.id,
+      hasComment: !!comment,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: isUpdate
+        ? 'Feedback updated successfully.'
+        : 'Feedback submitted successfully.',
+      feedback: {
+        id: result.id,
+        task_id: result.task_id,
+        rating: result.rating,
+        comment: result.comment,
+        submitted_at: result.submitted_at,
+      },
+      task: {
+        id: task.id,
+        title: task.title,
+        skill_area: task.skill_area,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena feedback endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment ? errorMessage : 'Failed to submit feedback',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/admin/feedback/overview - Admin-only feedback analytics
+router.get('/admin/feedback/overview', attachUserRank, async (req, res) => {
+  try {
+    // At this point, req.user is guaranteed to exist from attachUserRank middleware
+    const user = req.user!;
+
+    // Check if user has admin privileges (assuming admin users have 'platinum' rank or higher)
+    if (user.rankLevel !== 'platinum' && user.rankLevel !== 'admin') {
+      logger.warn(
+        '❌ Unauthorized access attempt to admin feedback overview:',
+        {
+          user_id: user.id,
+          email: user.email,
+          rankLevel: user.rankLevel,
+        }
+      );
+      return res.status(403).json({
+        success: false,
+        error: 'Admin access required',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const { skill, minRating, dateRange, limit = 10 } = req.query;
+
+    logger.info('📊 Admin requesting feedback overview:', {
+      user_id: user.id,
+      email: user.email,
+      rankLevel: user.rankLevel,
+      filters: { skill, minRating, dateRange, limit },
+    });
+
+    // Build base query for task feedback with task information
+    let baseQuery = supabaseAdmin
+      .from('task_feedback')
+      .select(
+        `
+          id,
+          rating,
+          comment,
+          submitted_at,
+          tasks!task_feedback_task_id_fkey (
+            id,
+            title,
+            description,
+            skill_area,
+            created_at
+          ),
+          users!task_feedback_user_id_fkey (
+            id,
+            email,
+            username,
+            rank_level
+          )
+        `
+      )
+      .not('tasks.id', 'is', null); // Ensure task exists
+
+    // Apply filters
+    if (skill) {
+      baseQuery = baseQuery.eq('tasks.skill_area', skill);
+    }
+
+    if (minRating) {
+      const rating = parseInt(minRating as string);
+      if (!isNaN(rating) && rating >= 1 && rating <= 5) {
+        baseQuery = baseQuery.gte('rating', rating);
+      }
+    }
+
+    if (dateRange) {
+      try {
+        const [startDate, endDate] = (dateRange as string).split(',');
+        if (startDate && endDate) {
+          baseQuery = baseQuery
+            .gte('submitted_at', new Date(startDate).toISOString())
+            .lte('submitted_at', new Date(endDate).toISOString());
+        }
+      } catch (error) {
+        logger.warn('❌ Invalid dateRange format:', { dateRange, error });
+      }
+    }
+
+    // Fetch all feedback data
+    const { data: feedbackData, error: feedbackError } = await baseQuery;
+
+    if (feedbackError) {
+      logger.error('❌ Failed to fetch feedback data:', {
+        user_id: user.id,
+        error: feedbackError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch feedback data',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('📊 Feedback data fetched successfully:', {
+      user_id: user.id,
+      totalFeedback: feedbackData?.length || 0,
+    });
+
+    // Process feedback data
+    const feedback = (feedbackData || []).map((item) => ({
+      id: item.id,
+      rating: item.rating,
+      comment: item.comment,
+      submitted_at: item.submitted_at,
+      task: {
+        id: item.tasks?.id,
+        title: item.tasks?.title,
+        skill_area: item.tasks?.skill_area,
+        created_at: item.tasks?.created_at,
+      },
+      user: {
+        id: item.users?.id,
+        email: item.users?.email,
+        username: item.users?.username,
+        rank_level: item.users?.rank_level,
+      },
+    }));
+
+    // Calculate top 10 most-rated tasks
+    const taskRatingStats = feedback.reduce(
+      (acc, item) => {
+        const taskId = item.task.id;
+        if (!acc[taskId]) {
+          acc[taskId] = {
+            task: item.task,
+            ratings: [],
+            totalRating: 0,
+            count: 0,
+          };
+        }
+        acc[taskId].ratings.push(item.rating);
+        acc[taskId].totalRating += item.rating;
+        acc[taskId].count += 1;
+        return acc;
+      },
+      {} as Record<
+        string,
+        {
+          task: any;
+          ratings: number[];
+          totalRating: number;
+          count: number;
+        }
+      >
+    );
+
+    const topRatedTasks = Object.values(taskRatingStats)
+      .map((stats) => ({
+        task: stats.task,
+        averageRating:
+          Math.round((stats.totalRating / stats.count) * 100) / 100,
+        totalRatings: stats.count,
+        ratings: stats.ratings,
+      }))
+      .sort((a, b) => b.totalRatings - a.totalRatings)
+      .slice(0, parseInt(limit as string) || 10);
+
+    // Calculate average rating per task
+    const averageRatingPerTask =
+      Object.values(taskRatingStats).reduce(
+        (sum, stats) => sum + stats.totalRating / stats.count,
+        0
+      ) / Object.keys(taskRatingStats).length;
+
+    // Count feedback per skill area
+    const skillAreaStats = feedback.reduce(
+      (acc, item) => {
+        const skillArea = item.task.skill_area || 'unknown';
+        if (!acc[skillArea]) {
+          acc[skillArea] = {
+            count: 0,
+            totalRating: 0,
+            ratings: [],
+          };
+        }
+        acc[skillArea].count += 1;
+        acc[skillArea].totalRating += item.rating;
+        acc[skillArea].ratings.push(item.rating);
+        return acc;
+      },
+      {} as Record<
+        string,
+        {
+          count: number;
+          totalRating: number;
+          ratings: number[];
+        }
+      >
+    );
+
+    const skillAreaBreakdown = Object.entries(skillAreaStats)
+      .map(([skill, stats]) => ({
+        skill,
+        count: stats.count,
+        averageRating:
+          Math.round((stats.totalRating / stats.count) * 100) / 100,
+        totalRating: stats.totalRating,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // Calculate weekly feedback trend (past 4 weeks)
+    const weeklyTrend = calculateWeeklyFeedbackTrend(feedback);
+
+    // Generate insights
+    const insights = generateFeedbackInsights({
+      totalFeedback: feedback.length,
+      topRatedTasks,
+      averageRatingPerTask,
+      skillAreaBreakdown,
+      weeklyTrend,
+    });
+
+    logger.info('✅ Admin feedback overview generated successfully:', {
+      user_id: user.id,
+      totalFeedback: feedback.length,
+      topRatedTasksCount: topRatedTasks.length,
+      skillAreas: skillAreaBreakdown.length,
+      weeklyDataPoints: weeklyTrend.weeks.length,
+    });
+
+    res.status(200).json({
+      success: true,
+      filters: {
+        skill: skill || 'all',
+        minRating: minRating || 'none',
+        dateRange: dateRange || 'all',
+        limit: parseInt(limit as string) || 10,
+      },
+      summary: {
+        totalFeedback: feedback.length,
+        totalTasks: Object.keys(taskRatingStats).length,
+        averageRatingPerTask: Math.round(averageRatingPerTask * 100) / 100,
+        dateRange:
+          feedback.length > 0
+            ? {
+                earliest: feedback[feedback.length - 1]?.submitted_at,
+                latest: feedback[0]?.submitted_at,
+              }
+            : null,
+      },
+      topRatedTasks,
+      skillAreaBreakdown,
+      weeklyTrend,
+      insights,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Admin feedback overview endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to generate feedback overview',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Helper function to calculate weekly feedback trend
+function calculateWeeklyFeedbackTrend(feedback: any[]): {
+  weeks: Array<{
+    week: string;
+    count: number;
+    averageRating: number;
+    tasks: string[];
+  }>;
+} {
+  if (feedback.length === 0) {
+    return { weeks: [] };
+  }
+
+  // Group feedback by week
+  const weeklyData = feedback.reduce(
+    (acc, item) => {
+      const date = new Date(item.submitted_at);
+      const weekStart = new Date(date);
+      weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
+
+      const weekKey = `${weekStart.getFullYear()}-W${String(Math.ceil((weekStart.getDate() + weekStart.getDay()) / 7)).padStart(2, '0')}`;
+
+      if (!acc[weekKey]) {
+        acc[weekKey] = {
+          ratings: [],
+          tasks: new Set(),
+        };
+      }
+
+      acc[weekKey].ratings.push(item.rating);
+      acc[weekKey].tasks.add(item.task.title);
+
+      return acc;
+    },
+    {} as Record<string, { ratings: number[]; tasks: Set<string> }>
+  );
+
+  // Convert to array format and calculate metrics
+  const weeks = Object.entries(weeklyData)
+    .map(([week, data]) => ({
+      week,
+      count: data.ratings.length,
+      averageRating:
+        Math.round(
+          (data.ratings.reduce((sum, rating) => sum + rating, 0) /
+            data.ratings.length) *
+            100
+        ) / 100,
+      tasks: Array.from(data.tasks),
+    }))
+    .sort((a, b) => a.week.localeCompare(b.week))
+    .slice(-4); // Last 4 weeks
+
+  return { weeks };
+}
+
+// Helper function to generate insights
+function generateFeedbackInsights(context: any): string[] {
+  const {
+    totalFeedback,
+    topRatedTasks,
+    averageRatingPerTask,
+    skillAreaBreakdown,
+    weeklyTrend,
+  } = context;
+
+  const insights: string[] = [];
+
+  // Overall feedback insights
+  if (totalFeedback === 0) {
+    insights.push(
+      'No feedback has been submitted yet. Consider encouraging users to provide feedback on completed tasks.'
+    );
+  } else {
+    insights.push(
+      `Total of ${totalFeedback} feedback submissions across ${topRatedTasks.length} unique tasks.`
+    );
+  }
+
+  // Rating insights
+  if (averageRatingPerTask > 4.0) {
+    insights.push(
+      `High overall satisfaction with average rating of ${averageRatingPerTask}/5 across all tasks.`
+    );
+  } else if (averageRatingPerTask < 3.0) {
+    insights.push(
+      `Low overall satisfaction with average rating of ${averageRatingPerTask}/5. Consider reviewing task quality and instructions.`
+    );
+  } else {
+    insights.push(
+      `Moderate satisfaction with average rating of ${averageRatingPerTask}/5. Room for improvement in task quality.`
+    );
+  }
+
+  // Top task insights
+  if (topRatedTasks.length > 0) {
+    const topTask = topRatedTasks[0];
+    insights.push(
+      `"${topTask.task.title}" is the most rated task with ${topTask.totalRatings} ratings and ${topTask.averageRating}/5 average.`
+    );
+  }
+
+  // Skill area insights
+  if (skillAreaBreakdown.length > 0) {
+    const mostRatedSkill = skillAreaBreakdown[0];
+    const leastRatedSkill = skillAreaBreakdown[skillAreaBreakdown.length - 1];
+
+    insights.push(
+      `${mostRatedSkill.skill} tasks receive the most feedback (${mostRatedSkill.count} ratings).`
+    );
+
+    if (leastRatedSkill.count < mostRatedSkill.count * 0.5) {
+      insights.push(
+        `${leastRatedSkill.skill} tasks need more user engagement - only ${leastRatedSkill.count} ratings.`
+      );
+    }
+  }
+
+  // Weekly trend insights
+  if (weeklyTrend.weeks.length > 1) {
+    const recentWeeks = weeklyTrend.weeks.slice(-2);
+    const recentAvg =
+      recentWeeks.reduce((sum, week) => sum + week.averageRating, 0) /
+      recentWeeks.length;
+    const olderWeeks = weeklyTrend.weeks.slice(0, -2);
+    const olderAvg =
+      olderWeeks.reduce((sum, week) => sum + week.averageRating, 0) /
+      olderWeeks.length;
+
+    if (recentAvg > olderAvg + 0.5) {
+      insights.push(
+        'Recent feedback shows improving task satisfaction compared to previous weeks.'
+      );
+    } else if (recentAvg < olderAvg - 0.5) {
+      insights.push(
+        'Recent feedback shows declining task satisfaction - review recent task quality.'
+      );
+    }
+  }
+
+  // Engagement insights
+  const tasksWithMultipleRatings = topRatedTasks.filter(
+    (task) => task.totalRatings > 1
+  ).length;
+  if (tasksWithMultipleRatings < topRatedTasks.length * 0.5) {
+    insights.push(
+      'Many tasks have limited feedback. Consider implementing feedback prompts or incentives.'
+    );
+  }
+
+  return insights.slice(0, 5); // Limit to 5 insights
+}
+
+// POST /api/tasks/:taskId/feedback - Submit feedback on a specific completed task
+router.post('/tasks/:taskId/feedback', attachUserRank, async (req, res) => {
+  try {
+    // At this point, req.user is guaranteed to exist from attachUserRank middleware
+    const user = req.user!;
+
+    const { taskId } = req.params;
+    const { rating, comment } = req.body;
+
+    logger.info('📝 User submitting task-specific feedback:', {
+      user_id: user.id,
+      email: user.email,
+      task_id: taskId,
+      rating,
+      hasComment: !!comment,
+    });
+
+    // Validate task ID
+    if (!taskId) {
+      logger.warn('❌ Missing task ID in feedback submission:', {
+        user_id: user.id,
+        task_id: taskId,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Task ID is required',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate rating
+    if (
+      !rating ||
+      typeof rating !== 'number' ||
+      rating < 1 ||
+      rating > 5 ||
+      !Number.isInteger(rating)
+    ) {
+      logger.warn('❌ Invalid rating in task feedback submission:', {
+        user_id: user.id,
+        task_id: taskId,
+        rating,
+        ratingType: typeof rating,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Rating must be an integer from 1 to 5',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate comment length if provided
+    if (comment && typeof comment === 'string' && comment.length > 1000) {
+      logger.warn('❌ Comment too long in task feedback submission:', {
+        user_id: user.id,
+        task_id: taskId,
+        commentLength: comment.length,
+        maxLength: 1000,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Comment must be 1000 characters or less',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate that the task exists
+    const { data: task, error: taskError } = await supabaseAdmin
+      .from('tasks')
+      .select('id, title, skill_area')
+      .eq('id', taskId)
+      .single();
+
+    if (taskError || !task) {
+      logger.warn('❌ Invalid task ID in feedback submission:', {
+        user_id: user.id,
+        task_id: taskId,
+        error: taskError?.message,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid task ID provided',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('✅ Task validation successful:', {
+      user_id: user.id,
+      task_id: taskId,
+      task_title: task.title,
+      skill_area: task.skill_area,
+    });
+
+    // Check if user has completed the task (has a scored submission)
+    const { data: submission, error: submissionError } = await supabaseAdmin
+      .from('submissions')
+      .select('id, status, score, submitted_at')
+      .eq('user_id', user.id)
+      .eq('task_id', taskId)
+      .eq('status', 'scored')
+      .not('score', 'is', null)
+      .single();
+
+    if (submissionError || !submission) {
+      logger.warn('❌ User has not completed the task for feedback:', {
+        user_id: user.id,
+        task_id: taskId,
+        error: submissionError?.message,
+      });
+      return res.status(403).json({
+        success: false,
+        error: 'You must complete this task before providing feedback',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('✅ Task completion validation successful:', {
+      user_id: user.id,
+      task_id: taskId,
+      submission_id: submission.id,
+      score: submission.score,
+      submitted_at: submission.submitted_at,
+    });
+
+    // Check if user has already submitted feedback for this task
+    const { data: existingFeedback, error: checkError } = await supabaseAdmin
+      .from('task_feedback')
+      .select('id, rating, comment, submitted_at')
+      .eq('user_id', user.id)
+      .eq('task_id', taskId)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      // PGRST116 is "not found" error
+      logger.error('❌ Error checking existing feedback:', {
+        user_id: user.id,
+        task_id: taskId,
+        error: checkError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to check existing feedback',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    let result;
+    let isUpdate = false;
+
+    if (existingFeedback) {
+      // Update existing feedback
+      logger.info('🔄 Updating existing task feedback:', {
+        user_id: user.id,
+        task_id: taskId,
+        existing_rating: existingFeedback.rating,
+        new_rating: rating,
+        feedback_id: existingFeedback.id,
+      });
+
+      const { data: updateData, error: updateError } = await supabaseAdmin
+        .from('task_feedback')
+        .update({
+          rating,
+          comment: comment || null,
+          submitted_at: new Date().toISOString(),
+        })
+        .eq('id', existingFeedback.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        logger.error('❌ Failed to update task feedback:', {
+          user_id: user.id,
+          task_id: taskId,
+          feedback_id: existingFeedback.id,
+          error: updateError?.message,
+        });
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to update feedback',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      result = updateData;
+      isUpdate = true;
+    } else {
+      // Insert new feedback
+      logger.info('➕ Creating new task feedback:', {
+        user_id: user.id,
+        task_id: taskId,
+        rating,
+        hasComment: !!comment,
+      });
+
+      const { data: insertData, error: insertError } = await supabaseAdmin
+        .from('task_feedback')
+        .insert({
+          user_id: user.id,
+          task_id: taskId,
+          rating,
+          comment: comment || null,
+          submitted_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        logger.error('❌ Failed to insert task feedback:', {
+          user_id: user.id,
+          task_id: taskId,
+          error: insertError?.message,
+        });
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to submit feedback',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      result = insertData;
+    }
+
+    logger.info('✅ Task feedback successfully submitted:', {
+      user_id: user.id,
+      email: user.email,
+      task_id: taskId,
+      task_title: task.title,
+      rating,
+      isUpdate,
+      feedback_id: result.id,
+      hasComment: !!comment,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: isUpdate
+        ? 'Task feedback updated successfully.'
+        : 'Task feedback submitted successfully.',
+      feedback: {
+        id: result.id,
+        task_id: result.task_id,
+        rating: result.rating,
+        comment: result.comment,
+        submitted_at: result.submitted_at,
+      },
+      task: {
+        id: task.id,
+        title: task.title,
+        skill_area: task.skill_area,
+      },
+      submission: {
+        id: submission.id,
+        score: submission.score,
+        submitted_at: submission.submitted_at,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Task feedback endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to submit task feedback',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/feedback/stats - Get aggregated feedback statistics for Arena tasks
+router.get('/feedback/stats', attachUserRank, async (req, res) => {
+  try {
+    // At this point, req.user is guaranteed to exist from attachUserRank middleware
+    const user = req.user!;
+
+    const { skill_area, date_range, limit = 50 } = req.query;
+
+    logger.info('📊 User requesting feedback statistics:', {
+      user_id: user.id,
+      email: user.email,
+      filters: { skill_area, date_range, limit },
+    });
+
+    // Build base query for task feedback with task information
+    let baseQuery = supabaseAdmin
+      .from('task_feedback')
+      .select(
+        `
+          id,
+          rating,
+          comment,
+          submitted_at,
+          tasks!task_feedback_task_id_fkey (
+            id,
+            title,
+            description,
+            skill_area,
+            created_at
+          )
+        `
+      )
+      .not('tasks.id', 'is', null); // Ensure task exists
+
+    // Apply skill area filter if provided
+    if (skill_area) {
+      baseQuery = baseQuery.eq('tasks.skill_area', skill_area);
+    }
+
+    // Apply date range filter if provided
+    if (date_range) {
+      try {
+        const [startDate, endDate] = (date_range as string).split(',');
+        if (startDate && endDate) {
+          baseQuery = baseQuery
+            .gte('submitted_at', new Date(startDate).toISOString())
+            .lte('submitted_at', new Date(endDate).toISOString());
+        }
+      } catch (error) {
+        logger.warn('❌ Invalid date_range format:', { date_range, error });
+      }
+    } else {
+      // Default to last 30 days if no date range provided
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      baseQuery = baseQuery.gte('submitted_at', thirtyDaysAgo.toISOString());
+    }
+
+    // Fetch all feedback data
+    const { data: feedbackData, error: feedbackError } = await baseQuery;
+
+    if (feedbackError) {
+      logger.error('❌ Failed to fetch feedback data for stats:', {
+        user_id: user.id,
+        error: feedbackError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch feedback data',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('📊 Feedback data fetched successfully for stats:', {
+      user_id: user.id,
+      totalFeedback: feedbackData?.length || 0,
+    });
+
+    // Process feedback data and aggregate by task
+    const taskStats = (feedbackData || []).reduce(
+      (acc, item) => {
+        const taskId = item.tasks?.id;
+        if (!taskId) return acc;
+
+        if (!acc[taskId]) {
+          acc[taskId] = {
+            task: {
+              id: taskId,
+              title: item.tasks?.title || 'Unknown Task',
+              skill_area: item.tasks?.skill_area || 'unknown',
+              created_at: item.tasks?.created_at,
+            },
+            ratings: [],
+            totalRating: 0,
+            count: 0,
+            lastFeedbackDate: null,
+          };
+        }
+
+        acc[taskId].ratings.push(item.rating);
+        acc[taskId].totalRating += item.rating;
+        acc[taskId].count += 1;
+
+        // Track the most recent feedback date
+        const feedbackDate = new Date(item.submitted_at);
+        if (
+          !acc[taskId].lastFeedbackDate ||
+          feedbackDate > new Date(acc[taskId].lastFeedbackDate)
+        ) {
+          acc[taskId].lastFeedbackDate = item.submitted_at;
+        }
+
+        return acc;
+      },
+      {} as Record<
+        string,
+        {
+          task: any;
+          ratings: number[];
+          totalRating: number;
+          count: number;
+          lastFeedbackDate: string | null;
+        }
+      >
+    );
+
+    // Convert to array format and calculate metrics
+    const taskStatsArray = Object.values(taskStats)
+      .map((stats) => ({
+        task_id: stats.task.id,
+        title: stats.task.title,
+        skill_area: stats.task.skill_area,
+        avg_rating: Math.round((stats.totalRating / stats.count) * 100) / 100,
+        total_feedback: stats.count,
+        last_feedback_date: stats.lastFeedbackDate,
+        ratings: stats.ratings, // Include for potential additional analysis
+      }))
+      .sort((a, b) => {
+        // Primary sort: average rating (descending)
+        if (b.avg_rating !== a.avg_rating) {
+          return b.avg_rating - a.avg_rating;
+        }
+        // Secondary sort: total feedback count (descending)
+        if (b.total_feedback !== a.total_feedback) {
+          return b.total_feedback - a.total_feedback;
+        }
+        // Tertiary sort: last feedback date (descending)
+        return (
+          new Date(b.last_feedback_date || 0).getTime() -
+          new Date(a.last_feedback_date || 0).getTime()
+        );
+      })
+      .slice(0, parseInt(limit as string) || 50);
+
+    // Calculate summary statistics
+    const totalTasks = taskStatsArray.length;
+    const totalFeedback = taskStatsArray.reduce(
+      (sum, task) => sum + task.total_feedback,
+      0
+    );
+    const averageRating =
+      totalTasks > 0
+        ? Math.round(
+            (taskStatsArray.reduce((sum, task) => sum + task.avg_rating, 0) /
+              totalTasks) *
+              100
+          ) / 100
+        : 0;
+
+    // Calculate skill area breakdown
+    const skillAreaStats = taskStatsArray.reduce(
+      (acc, task) => {
+        const skill = task.skill_area;
+        if (!acc[skill]) {
+          acc[skill] = {
+            count: 0,
+            totalFeedback: 0,
+            totalRating: 0,
+          };
+        }
+        acc[skill].count += 1;
+        acc[skill].totalFeedback += task.total_feedback;
+        acc[skill].totalRating += task.avg_rating;
+        return acc;
+      },
+      {} as Record<
+        string,
+        {
+          count: number;
+          totalFeedback: number;
+          totalRating: number;
+        }
+      >
+    );
+
+    const skillAreaBreakdown = Object.entries(skillAreaStats)
+      .map(([skill, stats]) => ({
+        skill,
+        task_count: stats.count,
+        total_feedback: stats.totalFeedback,
+        average_rating:
+          Math.round((stats.totalRating / stats.count) * 100) / 100,
+      }))
+      .sort((a, b) => b.total_feedback - a.total_feedback);
+
+    logger.info('✅ Feedback statistics generated successfully:', {
+      user_id: user.id,
+      totalTasks,
+      totalFeedback,
+      averageRating,
+      skillAreas: skillAreaBreakdown.length,
+    });
+
+    res.status(200).json({
+      success: true,
+      filters: {
+        skill_area: skill_area || 'all',
+        date_range: date_range || 'last_30_days',
+        limit: parseInt(limit as string) || 50,
+      },
+      summary: {
+        total_tasks: totalTasks,
+        total_feedback: totalFeedback,
+        average_rating: averageRating,
+        skill_areas: skillAreaBreakdown.length,
+      },
+      skill_area_breakdown: skillAreaBreakdown,
+      tasks: taskStatsArray.map((task) => ({
+        task_id: task.task_id,
+        title: task.title,
+        skill_area: task.skill_area,
+        avg_rating: task.avg_rating,
+        total_feedback: task.total_feedback,
+        last_feedback_date: task.last_feedback_date,
+      })),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Arena feedback stats endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to generate feedback statistics',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/tasks/leaderboard - Get top tasks based on performance metrics
+router.get('/tasks/leaderboard', attachUserRank, async (req, res) => {
+  try {
+    // At this point, req.user is guaranteed to exist from attachUserRank middleware
+    const user = req.user!;
+
+    const {
+      skill_area,
+      limit = 10,
+      sort_by = 'scored_submissions',
+    } = req.query;
+
+    logger.info('🏆 User requesting task leaderboard:', {
+      user_id: user.id,
+      email: user.email,
+      filters: { skill_area, limit, sort_by },
+    });
+
+    // Validate limit parameter
+    const limitNum = parseInt(limit as string) || 10;
+    if (limitNum < 1 || limitNum > 50) {
+      logger.warn('❌ Invalid limit parameter in task leaderboard request:', {
+        user_id: user.id,
+        limit: limitNum,
+        maxAllowed: 50,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Limit must be between 1 and 50',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate sort_by parameter
+    const validSortBy = ['scored_submissions', 'average_score'];
+    if (!validSortBy.includes(sort_by as string)) {
+      logger.warn('❌ Invalid sort_by parameter in task leaderboard request:', {
+        user_id: user.id,
+        sort_by,
+        validOptions: validSortBy,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'sort_by must be either "scored_submissions" or "average_score"',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Build base query for tasks with submission data
+    let baseQuery = supabaseAdmin.from('tasks').select(`
+          id,
+          title,
+          description,
+          skill_area,
+          created_at,
+          submissions!submissions_task_id_fkey (
+            id,
+            status,
+            score,
+            submitted_at
+          )
+        `);
+
+    // Apply skill area filter if provided
+    if (skill_area) {
+      baseQuery = baseQuery.eq('skill_area', skill_area);
+    }
+
+    // Fetch all tasks with their submission data
+    const { data: tasksData, error: tasksError } = await baseQuery;
+
+    if (tasksError) {
+      logger.error('❌ Failed to fetch tasks data for leaderboard:', {
+        user_id: user.id,
+        error: tasksError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch tasks data',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('📊 Tasks data fetched successfully for leaderboard:', {
+      user_id: user.id,
+      totalTasks: tasksData?.length || 0,
+    });
+
+    // Process tasks data and calculate metrics
+    const taskMetrics = (tasksData || []).map((task) => {
+      const submissions = task.submissions || [];
+
+      // Calculate submission metrics
+      const totalSubmissions = submissions.length;
+      const scoredSubmissions = submissions.filter(
+        (s) => s.status === 'scored' && s.score !== null
+      );
+      const scoredSubmissionsCount = scoredSubmissions.length;
+
+      // Calculate average score from scored submissions
+      const averageScore =
+        scoredSubmissionsCount > 0
+          ? Math.round(
+              (scoredSubmissions.reduce((sum, s) => sum + s.score, 0) /
+                scoredSubmissionsCount) *
+                100
+            ) / 100
+          : 0;
+
+      // Get latest submission date
+      const latestSubmissionDate =
+        submissions.length > 0
+          ? submissions.reduce((latest, current) =>
+              new Date(current.submitted_at) > new Date(latest.submitted_at)
+                ? current
+                : latest
+            ).submitted_at
+          : null;
+
+      return {
+        task_id: task.id,
+        title: task.title,
+        skill_area: task.skill_area,
+        total_submissions: totalSubmissions,
+        scored_submissions: scoredSubmissionsCount,
+        average_score: averageScore,
+        latest_submission_date: latestSubmissionDate,
+        created_at: task.created_at,
+      };
+    });
+
+    // Filter out tasks with no submissions (optional - you can remove this if you want to include all tasks)
+    const tasksWithSubmissions = taskMetrics.filter(
+      (task) => task.total_submissions > 0
+    );
+
+    // Sort tasks based on sort_by parameter
+    const sortedTasks = tasksWithSubmissions.sort((a, b) => {
+      if (sort_by === 'scored_submissions') {
+        // Primary sort: scored submissions (descending)
+        if (b.scored_submissions !== a.scored_submissions) {
+          return b.scored_submissions - a.scored_submissions;
+        }
+        // Secondary sort: average score (descending)
+        if (b.average_score !== a.average_score) {
+          return b.average_score - a.average_score;
+        }
+        // Tertiary sort: total submissions (descending)
+        return b.total_submissions - a.total_submissions;
+      } else {
+        // sort_by === 'average_score'
+        // Primary sort: average score (descending)
+        if (b.average_score !== a.average_score) {
+          return b.average_score - a.average_score;
+        }
+        // Secondary sort: scored submissions (descending)
+        if (b.scored_submissions !== a.scored_submissions) {
+          return b.scored_submissions - a.scored_submissions;
+        }
+        // Tertiary sort: total submissions (descending)
+        return b.total_submissions - a.total_submissions;
+      }
+    });
+
+    // Apply limit
+    const limitedTasks = sortedTasks.slice(0, limitNum);
+
+    // Calculate summary statistics
+    const totalTasks = limitedTasks.length;
+    const averageScore =
+      totalTasks > 0
+        ? Math.round(
+            (limitedTasks.reduce((sum, task) => sum + task.average_score, 0) /
+              totalTasks) *
+              100
+          ) / 100
+        : 0;
+    const totalScoredSubmissions = limitedTasks.reduce(
+      (sum, task) => sum + task.scored_submissions,
+      0
+    );
+    const totalSubmissions = limitedTasks.reduce(
+      (sum, task) => sum + task.total_submissions,
+      0
+    );
+
+    // Calculate skill area breakdown
+    const skillAreaStats = limitedTasks.reduce(
+      (acc, task) => {
+        const skill = task.skill_area;
+        if (!acc[skill]) {
+          acc[skill] = {
+            count: 0,
+            totalSubmissions: 0,
+            totalScoredSubmissions: 0,
+            totalScore: 0,
+          };
+        }
+        acc[skill].count += 1;
+        acc[skill].totalSubmissions += task.total_submissions;
+        acc[skill].totalScoredSubmissions += task.scored_submissions;
+        acc[skill].totalScore += task.average_score;
+        return acc;
+      },
+      {} as Record<
+        string,
+        {
+          count: number;
+          totalSubmissions: number;
+          totalScoredSubmissions: number;
+          totalScore: number;
+        }
+      >
+    );
+
+    const skillAreaBreakdown = Object.entries(skillAreaStats)
+      .map(([skill, stats]) => ({
+        skill,
+        task_count: stats.count,
+        total_submissions: stats.totalSubmissions,
+        total_scored_submissions: stats.totalScoredSubmissions,
+        average_score: Math.round((stats.totalScore / stats.count) * 100) / 100,
+      }))
+      .sort((a, b) => b.task_count - a.task_count);
+
+    logger.info('✅ Task leaderboard generated successfully:', {
+      user_id: user.id,
+      totalTasks,
+      averageScore,
+      totalScoredSubmissions,
+      sortBy: sort_by,
+      skillAreas: skillAreaBreakdown.length,
+    });
+
+    res.status(200).json({
+      success: true,
+      filters: {
+        skill_area: skill_area || 'all',
+        limit: limitNum,
+        sort_by: sort_by,
+      },
+      summary: {
+        total_tasks: totalTasks,
+        average_score: averageScore,
+        total_scored_submissions: totalScoredSubmissions,
+        total_submissions: totalSubmissions,
+        skill_area_breakdown: skillAreaBreakdown,
+      },
+      leaderboard: limitedTasks.map((task, index) => ({
+        rank: index + 1,
+        task_id: task.task_id,
+        title: task.title,
+        skill_area: task.skill_area,
+        total_submissions: task.total_submissions,
+        scored_submissions: task.scored_submissions,
+        average_score: task.average_score,
+        latest_submission_date: task.latest_submission_date,
+        created_at: task.created_at,
+      })),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Task leaderboard endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to generate task leaderboard',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/users/leaderboard - Get top users by service points
+router.get('/users/leaderboard', attachUserRank, async (req, res) => {
+  try {
+    // At this point, req.user is guaranteed to exist from attachUserRank middleware
+    const user = req.user!;
+
+    const { skill_area, limit = 10 } = req.query;
+
+    logger.info('🏆 User requesting user leaderboard:', {
+      user_id: user.id,
+      email: user.email,
+      filters: { skill_area, limit },
+    });
+
+    // Validate limit parameter
+    const limitNum = parseInt(limit as string) || 10;
+    if (limitNum < 1 || limitNum > 50) {
+      logger.warn('❌ Invalid limit parameter in user leaderboard request:', {
+        user_id: user.id,
+        limit: limitNum,
+        maxAllowed: 50,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Limit must be between 1 and 50',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Build base query for users with submissions and task data
+    let baseQuery = supabaseAdmin.from('users').select(`
+          id,
+          email,
+          username,
+          points,
+          created_at,
+          submissions!submissions_user_id_fkey (
+            id,
+            status,
+            score,
+            submitted_at,
+            tasks!submissions_task_id_fkey (
+              id,
+              title,
+              skill_area
+            )
+          )
+        `);
+
+    // Fetch all users with their submission data
+    const { data: usersData, error: usersError } = await baseQuery;
+
+    if (usersError) {
+      logger.error('❌ Failed to fetch users data for leaderboard:', {
+        user_id: user.id,
+        error: usersError?.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch users data',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info('📊 Users data fetched successfully for leaderboard:', {
+      user_id: user.id,
+      totalUsers: usersData?.length || 0,
+    });
+
+    // Process users data and calculate metrics
+    const userMetrics = (usersData || []).map((userData) => {
+      const submissions = userData.submissions || [];
+
+      // Filter submissions by skill area if provided
+      let filteredSubmissions = submissions;
+      if (skill_area) {
+        filteredSubmissions = submissions.filter(
+          (submission) => submission.tasks?.skill_area === skill_area
+        );
+      }
+
+      // Calculate user metrics
+      const totalSubmissions = filteredSubmissions.length;
+      const scoredSubmissions = filteredSubmissions.filter(
+        (s) => s.status === 'scored' && s.score !== null
+      );
+      const averageScore =
+        scoredSubmissions.length > 0
+          ? Math.round(
+              (scoredSubmissions.reduce((sum, s) => sum + s.score, 0) /
+                scoredSubmissions.length) *
+                100
+            ) / 100
+          : 0;
+
+      // Get last submission date
+      const lastSubmissionDate =
+        filteredSubmissions.length > 0
+          ? filteredSubmissions.reduce((latest, current) =>
+              new Date(current.submitted_at) > new Date(latest.submitted_at)
+                ? current
+                : latest
+            ).submitted_at
+          : null;
+
+      // Calculate rank level based on points (using the same logic as rankMiddleware)
+      const calculateRankLevel = (points: number): string => {
+        if (points >= 10000) return 'platinum';
+        if (points >= 5000) return 'gold';
+        if (points >= 2000) return 'silver';
+        if (points >= 500) return 'bronze';
+        return 'newcomer';
+      };
+
+      const rankLevel = calculateRankLevel(userData.points || 0);
+
+      return {
+        user_id: userData.id,
+        username:
+          userData.username || userData.email?.split('@')[0] || 'Anonymous',
+        email: userData.email,
+        points: userData.points || 0,
+        rankLevel,
+        total_submissions: totalSubmissions,
+        scored_submissions: scoredSubmissions.length,
+        average_score: averageScore,
+        last_submission_date: lastSubmissionDate,
+        created_at: userData.created_at,
+        // Additional context for sorting
+        total_submissions_all: submissions.length,
+        scored_submissions_all: submissions.filter(
+          (s) => s.status === 'scored' && s.score !== null
+        ).length,
+      };
+    });
+
+    // Filter users based on skill area requirement
+    let filteredUsers = userMetrics;
+    if (skill_area) {
+      // Only include users who have submissions in the specified skill area
+      filteredUsers = userMetrics.filter((user) => user.total_submissions > 0);
+    }
+
+    // Sort by points (descending), then rankLevel, then latest activity
+    const sortedUsers = filteredUsers.sort((a, b) => {
+      // Primary sort: points (descending)
+      if (b.points !== a.points) {
+        return b.points - a.points;
+      }
+
+      // Secondary sort: rank level (platinum > gold > silver > bronze > newcomer)
+      const rankOrder = {
+        platinum: 5,
+        gold: 4,
+        silver: 3,
+        bronze: 2,
+        newcomer: 1,
+      };
+      const aRankValue = rankOrder[a.rankLevel as keyof typeof rankOrder] || 0;
+      const bRankValue = rankOrder[b.rankLevel as keyof typeof rankOrder] || 0;
+
+      if (bRankValue !== aRankValue) {
+        return bRankValue - aRankValue;
+      }
+
+      // Tertiary sort: latest activity (most recent first)
+      const aDate = a.last_submission_date
+        ? new Date(a.last_submission_date).getTime()
+        : 0;
+      const bDate = b.last_submission_date
+        ? new Date(b.last_submission_date).getTime()
+        : 0;
+
+      return bDate - aDate;
+    });
+
+    // Apply limit
+    const limitedUsers = sortedUsers.slice(0, limitNum);
+
+    // Calculate summary statistics
+    const totalUsers = limitedUsers.length;
+    const topPoints = totalUsers > 0 ? limitedUsers[0].points : 0;
+    const averagePoints =
+      totalUsers > 0
+        ? Math.round(
+            (limitedUsers.reduce((sum, user) => sum + user.points, 0) /
+              totalUsers) *
+              100
+          ) / 100
+        : 0;
+
+    // Calculate rank distribution
+    const rankDistribution = limitedUsers.reduce(
+      (acc, user) => {
+        const rank = user.rankLevel;
+        acc[rank] = (acc[rank] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
+
+    // Calculate skill area breakdown (if skill_area filter is applied)
+    let skillAreaBreakdown = null;
+    if (skill_area) {
+      const skillStats = limitedUsers.reduce(
+        (acc, user) => {
+          acc.totalSubmissions += user.total_submissions;
+          acc.totalScored += user.scored_submissions;
+          acc.totalPoints += user.points;
+          return acc;
+        },
+        { totalSubmissions: 0, totalScored: 0, totalPoints: 0 }
+      );
+
+      skillAreaBreakdown = {
+        skill_area,
+        total_users: totalUsers,
+        total_submissions: skillStats.totalSubmissions,
+        total_scored: skillStats.totalScored,
+        average_points:
+          Math.round((skillStats.totalPoints / totalUsers) * 100) / 100,
+        success_rate:
+          skillStats.totalSubmissions > 0
+            ? Math.round(
+                (skillStats.totalScored / skillStats.totalSubmissions) * 100
+              )
+            : 0,
+      };
+    }
+
+    logger.info('✅ User leaderboard generated successfully:', {
+      user_id: user.id,
+      totalUsers,
+      topPoints,
+      averagePoints,
+      skill_area: skill_area || 'all',
+    });
+
+    res.status(200).json({
+      success: true,
+      filters: {
+        skill_area: skill_area || 'all',
+        limit: limitNum,
+      },
+      summary: {
+        total_users: totalUsers,
+        top_points: topPoints,
+        average_points: averagePoints,
+        rank_distribution: rankDistribution,
+        skill_area: skill_area || null,
+      },
+      skill_area_breakdown: skillAreaBreakdown,
+      leaderboard: limitedUsers.map((user, index) => ({
+        rank: index + 1,
+        user_id: user.user_id,
+        username: user.username,
+        points: user.points,
+        rankLevel: user.rankLevel,
+        total_submissions: user.total_submissions,
+        scored_submissions: user.scored_submissions,
+        average_score: user.average_score,
+        last_submission_date: user.last_submission_date,
+        created_at: user.created_at,
+      })),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ User leaderboard endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: env.isDevelopment
+        ? errorMessage
+        : 'Failed to generate user leaderboard',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/arena/users/:userId/task-analytics - Get detailed task performance metrics for a user
+router.get(
+  '/users/:userId/task-analytics',
+  attachUserRank,
+  async (req, res) => {
+    try {
+      // At this point, req.user is guaranteed to exist from attachUserRank middleware
+      const requestingUser = req.user!;
+
+      const { userId } = req.params;
+      const { skill_area } = req.query;
+
+      logger.info('📊 User requesting task analytics:', {
+        requesting_user_id: requestingUser.id,
+        requesting_user_email: requestingUser.email,
+        target_user_id: userId,
+        filters: { skill_area },
+      });
+
+      // Validate userId parameter
+      if (!userId) {
+        logger.warn('❌ Missing userId parameter in task analytics request:', {
+          requesting_user_id: requestingUser.id,
+          target_user_id: userId,
+        });
+        return res.status(400).json({
+          success: false,
+          error: 'User ID is required',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Check access control: only the user themselves or an admin can access
+      const isOwnProfile = requestingUser.id === userId;
+      const isAdmin =
+        requestingUser.rankLevel === 'platinum' ||
+        requestingUser.rankLevel === 'admin';
+
+      if (!isOwnProfile && !isAdmin) {
+        logger.warn('❌ Unauthorized access attempt to task analytics:', {
+          requesting_user_id: requestingUser.id,
+          requesting_user_rank: requestingUser.rankLevel,
+          target_user_id: userId,
+          isOwnProfile,
+          isAdmin,
+        });
+        return res.status(403).json({
+          success: false,
+          error:
+            'You can only view your own task analytics or must be an admin',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Fetch user data to verify the target user exists
+      const { data: userData, error: userError } = await supabaseAdmin
+        .from('users')
+        .select('id, email, username, points, rankLevel')
+        .eq('id', userId)
+        .single();
+
+      if (userError || !userData) {
+        logger.warn('❌ Target user not found in task analytics request:', {
+          requesting_user_id: requestingUser.id,
+          target_user_id: userId,
+          error: userError?.message,
+        });
+        return res.status(404).json({
+          success: false,
+          error: 'User not found',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Build query for user's submissions with task data
+      let submissionsQuery = supabaseAdmin
+        .from('submissions')
+        .select(
+          `
+          id,
+          status,
+          score,
+          submitted_at,
+          scored_at,
+          tasks!submissions_task_id_fkey (
+            id,
+            title,
+            skill_area
+          )
+        `
+        )
+        .eq('user_id', userId);
+
+      // Apply skill area filter if provided
+      if (skill_area) {
+        submissionsQuery = submissionsQuery.eq('tasks.skill_area', skill_area);
+      }
+
+      // Fetch user's submissions
+      const { data: submissionsData, error: submissionsError } =
+        await submissionsQuery;
+
+      if (submissionsError) {
+        logger.error('❌ Failed to fetch user submissions for analytics:', {
+          requesting_user_id: requestingUser.id,
+          target_user_id: userId,
+          error: submissionsError?.message,
+        });
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to fetch user submissions',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      logger.info('📊 User submissions fetched successfully for analytics:', {
+        requesting_user_id: requestingUser.id,
+        target_user_id: userId,
+        totalSubmissions: submissionsData?.length || 0,
+      });
+
+      // Process submissions data
+      const submissions = submissionsData || [];
+      const scoredSubmissions = submissions.filter(
+        (s) => s.status === 'scored' && s.score !== null
+      );
+      const pendingSubmissions = submissions.filter(
+        (s) => s.status === 'pending'
+      );
+      const flaggedSubmissions = submissions.filter(
+        (s) => s.status === 'flagged'
+      );
+
+      // Calculate basic metrics
+      const totalSubmissions = submissions.length;
+      const totalScoredSubmissions = scoredSubmissions.length;
+      const averageScore =
+        totalScoredSubmissions > 0
+          ? Math.round(
+              (scoredSubmissions.reduce((sum, s) => sum + s.score, 0) /
+                totalScoredSubmissions) *
+                100
+            ) / 100
+          : 0;
+
+      // Find highest scored task
+      const highestScoredTask =
+        totalScoredSubmissions > 0
+          ? scoredSubmissions.reduce((best, current) =>
+              current.score > best.score ? current : best
+            )
+          : null;
+
+      // Find latest scored submission
+      const latestScoredSubmission =
+        totalScoredSubmissions > 0
+          ? scoredSubmissions.reduce((latest, current) =>
+              new Date(current.submitted_at) > new Date(latest.submitted_at)
+                ? current
+                : latest
+            )
+          : null;
+
+      // Calculate score distribution (bucketed)
+      const scoreDistribution = {
+        '0-49': 0,
+        '50-59': 0,
+        '60-69': 0,
+        '70-79': 0,
+        '80-89': 0,
+        '90-100': 0,
+      };
+
+      scoredSubmissions.forEach((submission) => {
+        const score = submission.score;
+        if (score >= 0 && score <= 49) scoreDistribution['0-49']++;
+        else if (score >= 50 && score <= 59) scoreDistribution['50-59']++;
+        else if (score >= 60 && score <= 69) scoreDistribution['60-69']++;
+        else if (score >= 70 && score <= 79) scoreDistribution['70-79']++;
+        else if (score >= 80 && score <= 89) scoreDistribution['80-89']++;
+        else if (score >= 90 && score <= 100) scoreDistribution['90-100']++;
+      });
+
+      // Calculate skill area breakdown
+      const skillAreaStats = submissions.reduce(
+        (acc, submission) => {
+          const skillArea = submission.tasks?.skill_area || 'unknown';
+          if (!acc[skillArea]) {
+            acc[skillArea] = {
+              totalSubmissions: 0,
+              scoredSubmissions: 0,
+              totalScore: 0,
+              scores: [],
+            };
+          }
+
+          acc[skillArea].totalSubmissions++;
+
+          if (submission.status === 'scored' && submission.score !== null) {
+            acc[skillArea].scoredSubmissions++;
+            acc[skillArea].totalScore += submission.score;
+            acc[skillArea].scores.push(submission.score);
+          }
+
+          return acc;
+        },
+        {} as Record<
+          string,
+          {
+            totalSubmissions: number;
+            scoredSubmissions: number;
+            totalScore: number;
+            scores: number[];
+          }
+        >
+      );
+
+      // Process skill area breakdown
+      const skillAreaBreakdown = Object.entries(skillAreaStats)
+        .map(([skill, stats]) => ({
+          skill,
+          total_submissions: stats.totalSubmissions,
+          scored_submissions: stats.scoredSubmissions,
+          average_score:
+            stats.scoredSubmissions > 0
+              ? Math.round((stats.totalScore / stats.scoredSubmissions) * 100) /
+                100
+              : 0,
+          success_rate:
+            stats.totalSubmissions > 0
+              ? Math.round(
+                  (stats.scoredSubmissions / stats.totalSubmissions) * 100
+                )
+              : 0,
+        }))
+        .sort((a, b) => b.scored_submissions - a.scored_submissions);
+
+      // Calculate additional metrics
+      const completionRate =
+        totalSubmissions > 0
+          ? Math.round((totalScoredSubmissions / totalSubmissions) * 100)
+          : 0;
+
+      const averageCompletionTime =
+        totalScoredSubmissions > 0
+          ? Math.round(
+              scoredSubmissions.reduce((sum, submission) => {
+                const submitted = new Date(submission.submitted_at);
+                const scored = new Date(submission.scored_at);
+                return sum + (scored.getTime() - submitted.getTime());
+              }, 0) /
+                totalScoredSubmissions /
+                (1000 * 60 * 60 * 24)
+            ) // Convert to days
+          : 0;
+
+      logger.info('✅ User task analytics generated successfully:', {
+        requesting_user_id: requestingUser.id,
+        target_user_id: userId,
+        totalSubmissions,
+        totalScoredSubmissions,
+        averageScore,
+        skillAreas: skillAreaBreakdown.length,
+        isOwnProfile,
+        isAdmin,
+      });
+
+      res.status(200).json({
+        success: true,
+        user: {
+          id: userData.id,
+          email: userData.email,
+          username: userData.username,
+          points: userData.points,
+          rankLevel: userData.rankLevel,
+        },
+        filters: {
+          skill_area: skill_area || 'all',
+        },
+        summary: {
+          total_submissions: totalSubmissions,
+          total_scored_submissions: totalScoredSubmissions,
+          pending_submissions: pendingSubmissions.length,
+          flagged_submissions: flaggedSubmissions.length,
+          average_score: averageScore,
+          completion_rate: completionRate,
+          average_completion_time_days: averageCompletionTime,
+        },
+        performance: {
+          highest_scored_task: highestScoredTask
+            ? {
+                task_id: highestScoredTask.tasks?.id,
+                title: highestScoredTask.tasks?.title,
+                score: highestScoredTask.score,
+                submitted_at: highestScoredTask.submitted_at,
+              }
+            : null,
+          latest_scored_submission: latestScoredSubmission
+            ? {
+                task_id: latestScoredSubmission.tasks?.id,
+                title: latestScoredSubmission.tasks?.title,
+                score: latestScoredSubmission.score,
+                submitted_at: latestScoredSubmission.submitted_at,
+              }
+            : null,
+        },
+        score_distribution: scoreDistribution,
+        skill_area_breakdown: skillAreaBreakdown,
+        access_info: {
+          requested_by: requestingUser.id,
+          is_own_profile: isOwnProfile,
+          is_admin: isAdmin,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'Unknown error occurred';
+      logger.error('❌ User task analytics endpoint error:', err);
+      res.status(500).json({
+        success: false,
+        error: env.isDevelopment
+          ? errorMessage
+          : 'Failed to generate user task analytics',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+// GET /api/test/scoring-audit - Run comprehensive AI scoring audit
+router.get('/test/scoring-audit', async (req, res) => {
+  try {
+    logger.info('🔍 Starting AI scoring audit test endpoint');
+
+    // Import the audit system
+    const { runScoringAudit, printAuditReport, quickConsistencyCheck } =
+      await import('../utils/scoring-audit');
+
+    // Run the comprehensive audit
+    const auditResult = await runScoringAudit();
+
+    // Print the report to console for debugging
+    printAuditReport(auditResult);
+
+    // Return the audit results
+    res.status(200).json({
+      success: true,
+      message: 'AI scoring audit completed successfully',
+      audit: auditResult,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ AI scoring audit test endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to run AI scoring audit',
+      details: env.isDevelopment ? errorMessage : 'Internal server error',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/test/quick-audit - Run quick consistency check
+router.get('/test/quick-audit', async (req, res) => {
+  try {
+    logger.info('⚡ Starting quick consistency check test endpoint');
+
+    // Import the audit system
+    const { quickConsistencyCheck } = await import('../utils/scoring-audit');
+
+    // Run the quick check
+    await quickConsistencyCheck();
+
+    res.status(200).json({
+      success: true,
+      message: 'Quick consistency check completed successfully',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : 'Unknown error occurred';
+    logger.error('❌ Quick audit test endpoint error:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to run quick consistency check',
+      details: env.isDevelopment ? errorMessage : 'Internal server error',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /api/admin/arena-audit - Admin dashboard for AI scoring audit results
+router.get(
+  '/admin/arena-audit',
+  attachUserRank,
+  requireRank('platinum'),
+  async (req, res) => {
+    try {
+      // At this point, req.user is guaranteed to exist and have platinum+ rank
+      const user = req.user!;
+
+      logger.info('🔍 Admin requesting Arena scoring audit dashboard:', {
+        user_id: user.id,
+        user_email: user.email,
+        user_rank: user.rankLevel,
+      });
+
+      // Import and run the scoring audit
+      const { runScoringAudit } = await import('../utils/scoring-audit');
+      const {
+        getAuditHealthMetrics,
+        getStatusEmoji,
+        getStatusText,
+        getHealthScoreColor,
+        getHealthScoreLabel,
+      } = await import('../utils/audit-metrics');
+
+      const auditResult = await runScoringAudit();
+
+      // Convert audit results to the format expected by the metrics utility
+      const auditResults = auditResult.results.map((result) => ({
+        task_id: result.submissionId,
+        user_id: 'dummy-user',
+        skill_area: result.skill,
+        original_score: result.expectedScore,
+        new_score: result.actualScore,
+        deviation: result.deviation,
+        status:
+          result.status === '✅ PASS'
+            ? 'pass'
+            : result.status === '⚠️ MINOR'
+              ? 'minor'
+              : result.status === '❌ MAJOR'
+                ? 'major'
+                : 'critical',
+        critical_issue: result.status === '🚨 CRITICAL',
+        timestamp: new Date().toISOString(),
+        audit_run_id: 'dashboard-audit',
+      }));
+
+      // Calculate metrics using centralized utility
+      const metrics = getAuditHealthMetrics(auditResults);
+
+      // Count abuse submissions
+      const abuseSubmissions = auditResult.results.filter((r) =>
+        r.submissionId.startsWith('abuse-')
+      );
+      const flaggedAbuseCount = abuseSubmissions.filter(
+        (r) => r.actualScore > 40
+      ).length;
+
+      // Group results by skill area for drilldown
+      const skillAreaResults = Object.entries(
+        auditResult.results.reduce(
+          (acc, result) => {
+            if (!acc[result.skill]) acc[result.skill] = [];
+            acc[result.skill].push(result);
+            return acc;
+          },
+          {} as Record<string, typeof auditResult.results>
+        )
+      ).map(([skill, results]) => ({
+        skill,
+        totalTests: results.length,
+        averageDeviation:
+          results.reduce((sum, r) => sum + r.deviation, 0) / results.length,
+        passed: results.filter((r) => r.status === '✅ PASS').length,
+        failed: results.filter((r) => r.status !== '✅ PASS').length,
+        criticalIssues: results.filter((r) => r.status === '🚨 CRITICAL')
+          .length,
+        results: results.map((r) => ({
+          submissionId: r.submissionId,
+          expectedScore: r.expectedScore,
+          actualScore: r.actualScore,
+          deviation: r.deviation,
+          status: r.status,
+          isAbuse: r.submissionId.startsWith('abuse-'),
+        })),
+      }));
+
+      // Determine overall status based on metrics
+      let overallStatus: 'healthy' | 'warning' | 'critical';
+      if (metrics.status === 'pass') overallStatus = 'healthy';
+      else if (metrics.status === 'minor') overallStatus = 'warning';
+      else overallStatus = 'critical';
+
+      logger.info('✅ Arena scoring audit dashboard generated successfully:', {
+        user_id: user.id,
+        totalTests: metrics.summary.totalResults,
+        averageDeviation: metrics.averageDeviation,
+        healthScore: metrics.healthScore,
+        overallStatus,
+        criticalIssues: metrics.criticalIssuesCount,
+      });
+
+      res.status(200).json({
+        success: true,
+        dashboard: {
+          summary: {
+            totalTests: metrics.summary.totalResults,
+            passed: metrics.summary.passedCount,
+            failed:
+              metrics.summary.minorCount +
+              metrics.summary.majorCount +
+              metrics.summary.criticalCount,
+            averageDeviation: metrics.averageDeviation,
+            healthScore: metrics.healthScore,
+            overallStatus,
+            flaggedAbuseCount,
+            criticalIssuesCount: metrics.criticalIssuesCount,
+          },
+          deviationBreakdown: metrics.breakdown,
+          skillAreas: skillAreaResults,
+          criticalIssues: auditResult.criticalIssues,
+          recommendations: auditResult.recommendations,
+          lastUpdated: new Date().toISOString(),
+        },
+        access: {
+          requested_by: user.id,
+          user_rank: user.rankLevel,
+          is_admin: user.rankLevel === 'platinum' || user.rankLevel === 'admin',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'Unknown error occurred';
+      logger.error('❌ Arena scoring audit dashboard error:', err);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to generate Arena scoring audit dashboard',
+        details: env.isDevelopment ? errorMessage : 'Internal server error',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+// GET /api/admin/audit/history - View nightly audit history and results
+router.get(
+  '/admin/audit/history',
+  attachUserRank,
+  requireRank('platinum'),
+  async (req, res) => {
+    try {
+      const user = req.user!;
+      const { limit = 10, offset = 0, status, days = 30 } = req.query;
+
+      logger.info('📊 Admin requesting audit history:', {
+        user_id: user.id,
+        user_email: user.email,
+        user_rank: user.rankLevel,
+        limit,
+        offset,
+        status,
+        days,
+      });
+
+      // Build query for audit runs
+      let query = supabaseAdmin
+        .from('arena_audit_runs')
+        .select('*')
+        .gte(
+          'started_at',
+          new Date(
+            Date.now() - parseInt(days as string) * 24 * 60 * 60 * 1000
+          ).toISOString()
+        )
+        .order('started_at', { ascending: false });
+
+      // Apply status filter if provided
+      if (status && status !== 'all') {
+        query = query.eq('status', status);
+      }
+
+      // Apply pagination
+      query = query.range(
+        parseInt(offset as string),
+        parseInt(offset as string) + parseInt(limit as string) - 1
+      );
+
+      const { data: auditRuns, error: runsError } = await query;
+
+      if (runsError) {
+        throw new Error(`Failed to fetch audit runs: ${runsError.message}`);
+      }
+
+      // Get summary statistics
+      const { data: summaryData, error: summaryError } = await supabaseAdmin
+        .from('arena_audit_runs')
+        .select('status, critical_count, average_deviation')
+        .gte(
+          'started_at',
+          new Date(
+            Date.now() - parseInt(days as string) * 24 * 60 * 60 * 1000
+          ).toISOString()
+        );
+
+      if (summaryError) {
+        throw new Error(
+          `Failed to fetch summary data: ${summaryError.message}`
+        );
+      }
+
+      // Calculate summary metrics
+      const totalRuns = summaryData?.length || 0;
+      const completedRuns =
+        summaryData?.filter((r) => r.status === 'completed').length || 0;
+      const failedRuns =
+        summaryData?.filter((r) => r.status === 'failed').length || 0;
+      const totalCriticalIssues =
+        summaryData?.reduce((sum, r) => sum + (r.critical_count || 0), 0) || 0;
+      const averageDeviation =
+        summaryData?.length > 0
+          ? summaryData.reduce(
+              (sum, r) => sum + (r.average_deviation || 0),
+              0
+            ) / summaryData.length
+          : 0;
+
+      // Get recent critical issues
+      const { data: criticalIssues, error: criticalError } = await supabaseAdmin
+        .from('arena_audit_results')
+        .select(
+          `
+          id,
+          task_id,
+          user_id,
+          skill_area,
+          original_score,
+          new_score,
+          deviation,
+          status,
+          timestamp,
+          audit_run_id
+        `
+        )
+        .eq('critical_issue', true)
+        .order('timestamp', { ascending: false })
+        .limit(20);
+
+      if (criticalError) {
+        logger.warn('Failed to fetch critical issues:', criticalError);
+      }
+
+      logger.info('✅ Audit history fetched successfully:', {
+        user_id: user.id,
+        totalRuns,
+        completedRuns,
+        failedRuns,
+        totalCriticalIssues,
+        averageDeviation: averageDeviation.toFixed(2),
+      });
+
+      res.status(200).json({
+        success: true,
+        audit: {
+          runs: auditRuns || [],
+          summary: {
+            totalRuns,
+            completedRuns,
+            failedRuns,
+            successRate:
+              totalRuns > 0 ? Math.round((completedRuns / totalRuns) * 100) : 0,
+            totalCriticalIssues,
+            averageDeviation: Math.round(averageDeviation * 100) / 100,
+            daysAnalyzed: parseInt(days as string),
+          },
+          criticalIssues: criticalIssues || [],
+          pagination: {
+            limit: parseInt(limit as string),
+            offset: parseInt(offset as string),
+            total: totalRuns,
+          },
+        },
+        access: {
+          requested_by: user.id,
+          user_rank: user.rankLevel,
+          is_admin: user.rankLevel === 'platinum' || user.rankLevel === 'admin',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'Unknown error occurred';
+      logger.error('❌ Audit history error:', err);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch audit history',
+        details: env.isDevelopment ? errorMessage : 'Internal server error',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+// GET /api/admin/audit/run/:runId - Get detailed results for a specific audit run
+router.get(
+  '/admin/audit/run/:runId',
+  attachUserRank,
+  requireRank('platinum'),
+  async (req, res) => {
+    try {
+      const user = req.user!;
+      const { runId } = req.params;
+
+      logger.info('📊 Admin requesting audit run details:', {
+        user_id: user.id,
+        user_email: user.email,
+        user_rank: user.rankLevel,
+        runId,
+      });
+
+      // Get audit run details
+      const { data: auditRun, error: runError } = await supabaseAdmin
+        .from('arena_audit_runs')
+        .select('*')
+        .eq('id', runId)
+        .single();
+
+      if (runError || !auditRun) {
+        return res.status(404).json({
+          success: false,
+          error: 'Audit run not found',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Get detailed results for this run
+      const { data: results, error: resultsError } = await supabaseAdmin
+        .from('arena_audit_results')
+        .select(
+          `
+          id,
+          task_id,
+          user_id,
+          skill_area,
+          original_score,
+          new_score,
+          deviation,
+          status,
+          critical_issue,
+          timestamp
+        `
+        )
+        .eq('audit_run_id', runId)
+        .order('timestamp', { ascending: false });
+
+      if (resultsError) {
+        throw new Error(
+          `Failed to fetch audit results: ${resultsError.message}`
+        );
+      }
+
+      // Calculate skill area breakdown
+      const skillBreakdown = (results || []).reduce(
+        (acc, result) => {
+          if (!acc[result.skill_area]) {
+            acc[result.skill_area] = {
+              count: 0,
+              passed: 0,
+              minor: 0,
+              major: 0,
+              critical: 0,
+              totalDeviation: 0,
+            };
+          }
+
+          acc[result.skill_area].count++;
+          acc[result.skill_area][result.status]++;
+          acc[result.skill_area].totalDeviation += result.deviation;
+
+          return acc;
+        },
+        {} as Record<
+          string,
+          {
+            count: number;
+            passed: number;
+            minor: number;
+            major: number;
+            critical: number;
+            totalDeviation: number;
+          }
+        >
+      );
+
+      // Calculate averages
+      Object.keys(skillBreakdown).forEach((skill) => {
+        const breakdown = skillBreakdown[skill];
+        breakdown.averageDeviation =
+          breakdown.count > 0 ? breakdown.totalDeviation / breakdown.count : 0;
+      });
+
+      logger.info('✅ Audit run details fetched successfully:', {
+        user_id: user.id,
+        runId,
+        totalResults: results?.length || 0,
+        skillAreas: Object.keys(skillBreakdown),
+      });
+
+      res.status(200).json({
+        success: true,
+        auditRun: {
+          ...auditRun,
+          results: results || [],
+          skillBreakdown,
+          summary: {
+            totalResults: results?.length || 0,
+            passedCount:
+              results?.filter((r) => r.status === 'pass').length || 0,
+            minorCount:
+              results?.filter((r) => r.status === 'minor').length || 0,
+            majorCount:
+              results?.filter((r) => r.status === 'major').length || 0,
+            criticalCount:
+              results?.filter((r) => r.status === 'critical').length || 0,
+            criticalIssuesCount:
+              results?.filter((r) => r.critical_issue).length || 0,
+            averageDeviation:
+              results?.length > 0
+                ? results.reduce((sum, r) => sum + r.deviation, 0) /
+                  results.length
+                : 0,
+          },
+        },
+        access: {
+          requested_by: user.id,
+          user_rank: user.rankLevel,
+          is_admin: user.rankLevel === 'platinum' || user.rankLevel === 'admin',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'Unknown error occurred';
+      logger.error('❌ Audit run details error:', err);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch audit run details',
+        details: env.isDevelopment ? errorMessage : 'Internal server error',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+// GET /api/admin/audit/export - Export audit results to CSV
+router.get(
+  '/admin/audit/export',
+  attachUserRank,
+  requireRank('platinum'),
+  async (req, res) => {
+    try {
+      const user = req.user!;
+      const {
+        runId,
+        days = 30,
+        skill_area,
+        deviation_threshold,
+        status,
+      } = req.query;
+
+      logger.info('📊 Admin requesting audit export:', {
+        user_id: user.id,
+        user_email: user.email,
+        user_rank: user.rankLevel,
+        runId: runId || 'none',
+        days: parseInt(days as string),
+        skill_area: skill_area || 'all',
+        deviation_threshold: deviation_threshold || 'none',
+        status: status || 'all',
+      });
+
+      // Build query for audit results
+      let query = supabaseAdmin
+        .from('arena_audit_results')
+        .select(
+          `
+          id,
+          task_id,
+          user_id,
+          skill_area,
+          original_score,
+          new_score,
+          deviation,
+          status,
+          critical_issue,
+          timestamp,
+          audit_run_id
+        `
+        )
+        .order('timestamp', { ascending: false });
+
+      // Apply filters
+      if (runId) {
+        // Export specific audit run
+        query = query.eq('audit_run_id', runId as string);
+      } else {
+        // Export by date range
+        const startDate = new Date(
+          Date.now() - parseInt(days as string) * 24 * 60 * 60 * 1000
+        ).toISOString();
+        query = query.gte('timestamp', startDate);
+      }
+
+      // Apply optional filters
+      if (skill_area && skill_area !== 'all') {
+        query = query.eq('skill_area', skill_area as string);
+      }
+
+      if (deviation_threshold) {
+        const threshold = parseFloat(deviation_threshold as string);
+        query = query.gte('deviation', threshold);
+      }
+
+      if (status && status !== 'all') {
+        query = query.eq('status', status as string);
+      }
+
+      const { data: auditResults, error: resultsError } = await query;
+
+      if (resultsError) {
+        throw new Error(
+          `Failed to fetch audit results: ${resultsError.message}`
+        );
+      }
+
+      if (!auditResults || auditResults.length === 0) {
+        logger.warn('⚠️ No audit results found for export:', {
+          user_id: user.id,
+          runId: runId || 'none',
+          days: parseInt(days as string),
+          filters: { skill_area, deviation_threshold, status },
+        });
+
+        return res.status(404).json({
+          success: false,
+          error: 'No audit results found for the specified criteria',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Generate CSV content
+      const csvContent = generateAuditCSV(auditResults);
+
+      // Generate filename
+      const timestamp = new Date().toISOString().split('T')[0];
+      const filename = runId
+        ? `audit_export_run_${runId}_${timestamp}.csv`
+        : `audit_export_${days}days_${timestamp}.csv`;
+
+      // Set response headers for CSV download
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${filename}"`
+      );
+      res.setHeader('Cache-Control', 'no-cache');
+
+      logger.info('✅ Audit export generated successfully:', {
+        user_id: user.id,
+        totalResults: auditResults.length,
+        filename,
+        runId: runId || 'range',
+        days: parseInt(days as string),
+      });
+
+      // Send CSV content
+      res.status(200).send(csvContent);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'Unknown error occurred';
+      logger.error('❌ Audit export error:', err);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to generate audit export',
+        details: env.isDevelopment ? errorMessage : 'Internal server error',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+/**
+ * Generate CSV content from audit results
+ */
+function generateAuditCSV(auditResults: any[]): string {
+  // CSV headers
+  const headers = [
+    'task_id',
+    'user_id',
+    'skill_area',
+    'original_score',
+    'new_score',
+    'deviation',
+    'status',
+    'critical_issue',
+    'timestamp',
+    'audit_run_id',
+  ];
+
+  // Start with headers
+  let csvContent = headers.join(',') + '\n';
+
+  // Add data rows
+  auditResults.forEach((result) => {
+    const row = [
+      result.task_id,
+      result.user_id,
+      result.skill_area,
+      result.original_score,
+      result.new_score,
+      result.deviation,
+      result.status,
+      result.critical_issue ? 'true' : 'false',
+      result.timestamp,
+      result.audit_run_id,
+    ];
+
+    // Escape fields that contain commas or quotes
+    const escapedRow = row.map((field) => {
+      const fieldStr = String(field);
+      if (
+        fieldStr.includes(',') ||
+        fieldStr.includes('"') ||
+        fieldStr.includes('\n')
+      ) {
+        return `"${fieldStr.replace(/"/g, '""')}"`;
+      }
+      return fieldStr;
+    });
+
+    csvContent += escapedRow.join(',') + '\n';
+  });
+
+  return csvContent;
+}
+
+export default router;
+// GET /api/admin/audit/runs - Fetch all Arena Audit runs for ArenaAuditRunManager
+router.get(
+  '/admin/audit/runs',
+  attachUserRank,
+  requireRank('platinum'),
+  async (req, res) => {
+    try {
+      const user = req.user!;
+
+      logger.info(' Admin requesting all audit runs:', {
+        userId: user.id,
+      });
+
+      // Fetch all audit runs from the database
+      const { data: auditRuns, error: runsError } = await supabaseAdmin
+        .from('arena_audit_runs')
+        .select('*')
+        .order('started_at', { ascending: false });
+
+      if (runsError) {
+        throw new Error(`Failed to fetch audit runs: ${runsError.message}`);
+      }
+
+      // Process each audit run to include status breakdown
+      const processedRuns = await Promise.all(
+        (auditRuns || []).map(async (run) => {
+          // Fetch results for this run to calculate status breakdown
+          const { data: runResults, error: resultsError } = await supabaseAdmin
+            .from('arena_audit_results')
+            .select('status, deviation')
+            .eq('audit_run_id', run.id);
+
+          if (resultsError) {
+            logger.warn(' Failed to fetch results for audit run:', {
+              runId: run.id,
+              error: resultsError.message,
+            });
+          }
+
+          // Calculate status breakdown
+          const statusBreakdown = {
+            pass: 0,
+            minor: 0,
+            major: 0,
+            critical: 0,
+          };
+
+          let totalDeviation = 0;
+          let validResults = 0;
+
+          if (runResults && runResults.length > 0) {
+            runResults.forEach((result) => {
+              // Count by status
+              if (result.status) {
+                const status = result.status.toLowerCase();
+                if (status.includes('pass')) statusBreakdown.pass++;
+                else if (status.includes('minor')) statusBreakdown.minor++;
+                else if (status.includes('major')) statusBreakdown.major++;
+                else if (status.includes('critical'))
+                  statusBreakdown.critical++;
+              }
+
+              // Calculate average deviation
+              if (typeof result.deviation === 'number') {
+                totalDeviation += result.deviation;
+                validResults++;
+              }
+            });
+          }
+
+          const averageDeviation =
+            validResults > 0 ? totalDeviation / validResults : 0;
+
+          return {
+            runId: run.id,
+            createdAt: run.started_at,
+            status: run.status || 'completed',
+            totalSubmissions: run.total_submissions || 0,
+            statusBreakdown,
+            averageDeviation: Math.round(averageDeviation * 100) / 100,
+            completedAt: run.completed_at,
+            errorMessage: run.error_message,
+          };
+        })
+      );
+
+      logger.info(' Audit runs fetched successfully:', {
+        userId: user.id,
+        totalRuns: processedRuns.length,
+      });
+
+      res.status(200).json({
+        success: true,
+        auditRuns: processedRuns,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      logger.error(' Fetch audit runs error:', err);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch audit runs',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);

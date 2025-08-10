@@ -1,0 +1,340 @@
+/* Mobile Optimization Styles for CaBE Arena */
+
+/* Touch Targets - Minimum 44x44px */
+button,
+a,
+[role='button'],
+input[type='submit'],
+input[type='button'],
+select,
+textarea {
+  min-height: 44px;
+  min-width: 44px;
+  touch-action: manipulation;
+}
+
+/* Remove 300ms click delay */
+* {
+  touch-action: manipulation;
+}
+
+/* Mobile-first responsive breakpoints */
+@media (max-width: 640px) {
+  /* Mobile styles */
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* Stack elements vertically on mobile */
+  .flex-row {
+    flex-direction: column;
+  }
+
+  /* Larger touch targets for mobile */
+  .mobile-touch-target {
+    min-height: 48px;
+    min-width: 48px;
+    padding: 12px 16px;
+  }
+
+  /* Mobile navigation */
+  .mobile-menu {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 50;
+  }
+
+  .mobile-menu-content {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 80%;
+    max-width: 320px;
+    height: 100%;
+    background: white;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+
+  .mobile-menu.open .mobile-menu-content {
+    transform: translateX(0);
+  }
+}
+
+/* Tablet styles */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .container {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+
+  /* Two-column layout on tablet */
+  .grid-cols-1 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Desktop styles */
+@media (min-width: 1025px) {
+  .container {
+    padding-left: 2rem;
+    padding-right: 2rem;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  /* Three-column layout on desktop */
+  .grid-cols-1 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* PWA-specific styles */
+@media (display-mode: standalone) {
+  /* Hide browser UI elements when installed as PWA */
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Add install prompt styles */
+  .install-prompt {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #6366f1;
+    color: white;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 1000;
+  }
+
+  .install-prompt.hidden {
+    display: none;
+  }
+}
+
+/* Offline banner styles */
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to right, #fef3c7, #fed7aa);
+  border-bottom: 1px solid #f59e0b;
+  z-index: 1000;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Mobile form optimization */
+input[type='email'],
+input[type='password'],
+input[type='text'],
+input[type='number'],
+input[type='tel'],
+input[type='url'] {
+  font-size: 16px; /* Prevents zoom on iOS */
+  min-height: 44px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Mobile button styles */
+.btn-mobile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-weight: 500;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+}
+
+.btn-mobile:focus {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+/* Mobile card styles */
+.card-mobile {
+  background: white;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+}
+
+/* Mobile list styles */
+.list-mobile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.list-item-mobile {
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+/* Mobile navigation styles */
+.nav-mobile {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  padding: 0.5rem;
+  z-index: 40;
+}
+
+.nav-mobile ul {
+  display: flex;
+  justify-content: space-around;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-mobile li {
+  flex: 1;
+  text-align: center;
+}
+
+.nav-mobile a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem;
+  text-decoration: none;
+  color: #6b7280;
+  min-height: 44px;
+  justify-content: center;
+}
+
+.nav-mobile a.active {
+  color: #6366f1;
+}
+
+/* Mobile modal styles */
+.modal-mobile {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modal-content-mobile {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  max-width: 90%;
+  max-height: 90%;
+  overflow-y: auto;
+}
+
+/* Mobile loading states */
+.loading-mobile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.spinner-mobile {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e5e7eb;
+  border-top: 4px solid #6366f1;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Mobile accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .btn-mobile {
+    border: 2px solid currentColor;
+  }
+
+  .card-mobile {
+    border: 2px solid currentColor;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .card-mobile {
+    background: #1f2937;
+    border-color: #374151;
+    color: white;
+  }
+
+  .nav-mobile {
+    background: #1f2937;
+    border-color: #374151;
+  }
+
+  .modal-content-mobile {
+    background: #1f2937;
+    color: white;
+  }
+}

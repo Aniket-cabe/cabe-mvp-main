@@ -1,0 +1,19 @@
+{
+  "name": "@cabe-arena/ts-config-base",
+  "version": "1.0.0",
+  "description": "Base TypeScript configuration for Cabe Arena",
+  "main": "tsconfig.json",
+  "files": [
+    "tsconfig.json"
+  ],
+  "scripts": {
+    "build": "echo 'No build required for config package'",
+    "test": "echo 'No tests for config package'",
+    "lint": "echo 'No linting for config package'",
+    "type-check": "echo 'No type checking for config package'",
+    "clean": "echo 'No cleanup required for config package'"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.2"
+  }
+}
