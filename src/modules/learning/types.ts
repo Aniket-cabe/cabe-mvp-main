@@ -2,7 +2,7 @@ export interface Course {
   id: string;
   title: string;
   description: string;
-  category: 'design' | 'web' | 'ai' | 'writing';
+  category: 'ai-ml' | 'cloud-devops' | 'data-analytics' | 'fullstack-dev';
   difficulty: 'beginner' | 'intermediate' | 'advanced' | 'expert';
   duration: string;
   requiredRank: string;

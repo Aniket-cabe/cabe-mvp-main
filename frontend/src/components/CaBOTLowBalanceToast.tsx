@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { AlertTriangle, X, Brain, Zap } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AlertTriangle, X, Brain } from 'lucide-react';
 
 interface CaBOTLowBalanceToastProps {
   balance: number;
@@ -180,7 +180,7 @@ export default function CaBOTLowBalanceToast({
       </div>
 
       {/* Animation styles */}
-      <style jsx>{`
+      <style>{`
         @keyframes shrink {
           from {
             width: 100%;

@@ -8,6 +8,7 @@ export const RANK_FEATURES = {
     'Submit Solutions',
     'View Basic Leaderboard',
     'Basic Analytics',
+    'Basic Credits',
   ],
   Silver: [
     'Arena Access',
@@ -20,6 +21,8 @@ export const RANK_FEATURES = {
     'Submission History',
     'Skill Area Filtering',
     'Priority Support',
+    'Enhanced Credits',
+    'Discounts',
   ],
   Gold: [
     'Arena Access',
@@ -38,6 +41,8 @@ export const RANK_FEATURES = {
     'Custom Themes',
     'Exclusive Challenges',
     'Advanced Tools',
+    'Premium Credits',
+    'Priority Discounts',
   ],
   Platinum: [
     'Arena Access',
@@ -62,6 +67,8 @@ export const RANK_FEATURES = {
     'Custom Integrations',
     'Priority Queue',
     'Exclusive Content',
+    'Unlimited Credits',
+    'Maximum Discounts',
   ],
 } as const;
 

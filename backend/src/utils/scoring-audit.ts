@@ -24,125 +24,125 @@ interface AuditResult {
 
 // Test submissions across 4 skill areas
 const dummySubmissions: TestSubmission[] = [
-  // Frontend
+  // AI/ML
   {
-    taskId: 'frontend-1',
-    skill: 'frontend',
-    input: 'Build a basic responsive navbar using HTML/CSS',
+    taskId: 'ai-ml-1',
+    skill: 'ai-ml',
+    input: 'Build a basic machine learning model using Python',
     proof: '<nav><ul><li><a href="#">Home</a></li></ul></nav>',
     expectedScore: 60,
   },
   {
-    taskId: 'frontend-2',
-    skill: 'frontend',
-    input: 'Build a React app with form validation and dynamic state handling',
+    taskId: 'ai-ml-2',
+    skill: 'ai-ml',
+    input: 'Build a neural network for image classification',
     proof:
       'const [formData, setFormData] = useState({}); const handleSubmit = (e) => { e.preventDefault(); }',
     expectedScore: 82,
   },
   {
-    taskId: 'frontend-3',
-    skill: 'frontend',
+    taskId: 'ai-ml-3',
+    skill: 'ai-ml',
     input:
-      'Create a complex dashboard with real-time data visualization using D3.js',
+      'Create a complex machine learning pipeline with data preprocessing',
     proof:
       'import * as d3 from "d3"; const svg = d3.select("#chart").append("svg");',
     expectedScore: 95,
   },
   {
-    taskId: 'frontend-4',
-    skill: 'frontend',
-    input: 'Build a simple static HTML page',
+    taskId: 'ai-ml-4',
+    skill: 'ai-ml',
+    input: 'Build a simple linear regression model',
     proof: '<html><body><h1>Hello World</h1></body></html>',
     expectedScore: 30,
   },
   {
-    taskId: 'frontend-5',
-    skill: 'frontend',
-    input: 'Create a responsive e-commerce product grid with filtering',
+    taskId: 'ai-ml-5',
+    skill: 'ai-ml',
+    input: 'Create a recommendation system with collaborative filtering',
     proof:
       'const ProductGrid = () => { const [filters, setFilters] = useState({}); }',
     expectedScore: 88,
   },
 
-  // Backend
+  // Cloud/DevOps
   {
-    taskId: 'backend-1',
-    skill: 'backend',
-    input: 'Create a Node.js REST API for user login/signup with JWT auth',
+    taskId: 'cloud-devops-1',
+    skill: 'cloud-devops',
+    input: 'Deploy a Node.js application to AWS with CI/CD pipeline',
     proof:
       'app.post("/auth/login", async (req, res) => { const { email, password } = req.body; }',
     expectedScore: 88,
   },
   {
-    taskId: 'backend-2',
-    skill: 'backend',
-    input: 'Set up an Express server and connect to MongoDB',
+    taskId: 'cloud-devops-2',
+    skill: 'cloud-devops',
+    input: 'Set up a Kubernetes cluster and deploy containers',
     proof:
       'const express = require("express"); const mongoose = require("mongoose"); app.listen(3000);',
     expectedScore: 72,
   },
   {
-    taskId: 'backend-3',
-    skill: 'backend',
+    taskId: 'cloud-devops-3',
+    skill: 'cloud-devops',
     input: 'Build a microservices architecture with Docker and Kubernetes',
     proof:
       'FROM node:16-alpine; COPY . /app; EXPOSE 3000; CMD ["npm", "start"]',
     expectedScore: 95,
   },
   {
-    taskId: 'backend-4',
-    skill: 'backend',
-    input: 'Create a simple "Hello World" API endpoint',
+    taskId: 'cloud-devops-4',
+    skill: 'cloud-devops',
+    input: 'Create a simple Docker container',
     proof:
       'app.get("/", (req, res) => { res.json({ message: "Hello World" }); });',
     expectedScore: 25,
   },
   {
-    taskId: 'backend-5',
-    skill: 'backend',
-    input: 'Implement a real-time chat system with WebSocket and Redis',
+    taskId: 'cloud-devops-5',
+    skill: 'cloud-devops',
+    input: 'Implement infrastructure as code with Terraform',
     proof: 'const WebSocket = require("ws"); const redis = require("redis");',
     expectedScore: 92,
   },
 
-  // Content
+  // Data Analytics
   {
-    taskId: 'content-1',
-    skill: 'content',
+    taskId: 'data-analytics-1',
+    skill: 'data-analytics',
     input:
-      'Write a 1000-word blog post on climate change impacts on agriculture',
+      'Analyze climate change data and create visualizations',
     proof:
       'Climate change represents one of the most significant challenges facing modern agriculture...',
     expectedScore: 85,
   },
   {
-    taskId: 'content-2',
-    skill: 'content',
-    input: 'Write a 250-word opinion piece on digital privacy',
+    taskId: 'data-analytics-2',
+    skill: 'data-analytics',
+    input: 'Create a data pipeline for processing user analytics',
     proof:
       "In today's digital age, privacy has become a fundamental human right...",
     expectedScore: 68,
   },
   {
-    taskId: 'content-3',
-    skill: 'content',
-    input: 'Create a comprehensive technical documentation for a software API',
+    taskId: 'data-analytics-3',
+    skill: 'data-analytics',
+    input: 'Build a business intelligence dashboard',
     proof:
       '# API Documentation\n\n## Authentication\nAll requests require a valid API key...',
     expectedScore: 90,
   },
   {
-    taskId: 'content-4',
-    skill: 'content',
-    input: 'Write a simple product description',
+    taskId: 'data-analytics-4',
+    skill: 'data-analytics',
+    input: 'Perform statistical analysis on user behavior data',
     proof: 'This is a great product that you should buy.',
     expectedScore: 20,
   },
   {
-    taskId: 'content-5',
-    skill: 'content',
-    input: 'Create a detailed case study on successful digital transformation',
+    taskId: 'data-analytics-5',
+    skill: 'data-analytics',
+    input: 'Create a machine learning model for predictive analytics',
     proof:
       'Executive Summary\n\nThis case study examines the digital transformation journey...',
     expectedScore: 88,
@@ -151,7 +151,7 @@ const dummySubmissions: TestSubmission[] = [
   // Data/AI
   {
     taskId: 'data-1',
-    skill: 'data',
+    skill: 'data-analytics',
     input: 'Clean a dataset and create 3 visualizations using Python',
     proof:
       'import pandas as pd; import matplotlib.pyplot as plt; df = pd.read_csv("data.csv");',
@@ -159,7 +159,7 @@ const dummySubmissions: TestSubmission[] = [
   },
   {
     taskId: 'data-2',
-    skill: 'data',
+    skill: 'data-analytics',
     input: 'Train a basic logistic regression classifier and evaluate it',
     proof:
       'from sklearn.linear_model import LogisticRegression; model = LogisticRegression(); model.fit(X_train, y_train);',
@@ -167,7 +167,7 @@ const dummySubmissions: TestSubmission[] = [
   },
   {
     taskId: 'data-3',
-    skill: 'data',
+    skill: 'data-analytics',
     input:
       'Build a deep learning model for image classification using TensorFlow',
     proof:
@@ -176,7 +176,7 @@ const dummySubmissions: TestSubmission[] = [
   },
   {
     taskId: 'data-4',
-    skill: 'data',
+    skill: 'data-analytics',
     input: 'Create a simple bar chart from a CSV file',
     proof:
       'import pandas as pd; df = pd.read_csv("data.csv"); df.plot(kind="bar");',
@@ -184,7 +184,7 @@ const dummySubmissions: TestSubmission[] = [
   },
   {
     taskId: 'data-5',
-    skill: 'data',
+    skill: 'data-analytics',
     input: 'Implement a recommendation system using collaborative filtering',
     proof:
       'def collaborative_filtering(user_ratings): # complex recommendation algorithm',
@@ -196,7 +196,7 @@ const dummySubmissions: TestSubmission[] = [
 const abuseTestCases: TestSubmission[] = [
   {
     taskId: 'abuse-1',
-    skill: 'frontend',
+    skill: 'fullstack-dev',
     input: 'Build a React component',
     proof:
       '// Very long comment to inflate code size... repeated many times... const Component = () => <div>Hello</div>;',
@@ -204,7 +204,7 @@ const abuseTestCases: TestSubmission[] = [
   },
   {
     taskId: 'abuse-2',
-    skill: 'content',
+    skill: 'data-analytics',
     input: 'Write a technical article',
     proof:
       'This is a technical article. This is a technical article. This is a technical article. This is a technical article.',
@@ -212,7 +212,7 @@ const abuseTestCases: TestSubmission[] = [
   },
   {
     taskId: 'abuse-3',
-    skill: 'backend',
+    skill: 'cloud-devops',
     input: 'Create an API endpoint',
     proof:
       'console.log("API"); console.log("API"); console.log("API"); app.get("/api", (req, res) => res.json({}));',

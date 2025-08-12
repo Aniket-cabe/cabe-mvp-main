@@ -1,5 +1,3 @@
-
-
 interface SubmissionHeatmapProps {
   data: Array<{
     date: string;

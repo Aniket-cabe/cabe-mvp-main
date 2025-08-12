@@ -8,19 +8,19 @@ import ActivityHeatmap from './ActivityHeatmap';
 import SkillXPBar from './SkillXPBar';
 
 const SKILL_AREAS = [
-  { slug: 'design', name: 'Design', icon: '🎨', color: 'pink-500' },
-  { slug: 'web', name: 'Web Development', icon: '💻', color: 'emerald-500' },
+  { slug: 'ai-ml', name: 'AI / Machine Learning', icon: '🤖', color: 'violet-500' },
+  { slug: 'cloud-devops', name: 'Cloud Computing & DevOps', icon: '☁️', color: 'blue-500' },
   {
-    slug: 'ai',
-    name: 'Artificial Intelligence',
-    icon: '🤖',
-    color: 'violet-500',
+    slug: 'data-analytics',
+    name: 'Data Science & Analytics',
+    icon: '📊',
+    color: 'emerald-500',
   },
-  { slug: 'writing', name: 'Content Writing', icon: '✍️', color: 'amber-500' },
+  { slug: 'fullstack-dev', name: 'Full-Stack Software Development', icon: '💻', color: 'purple-500' },
 ];
 
 export default function SkillsDemo() {
-  const [selectedSkill, setSelectedSkill] = useState('design');
+  const [selectedSkill, setSelectedSkill] = useState('ai-ml');
   const { data, loading, error, refetch } = useSkillData(selectedSkill);
 
   const handleSkillChange = (skillSlug: string) => {

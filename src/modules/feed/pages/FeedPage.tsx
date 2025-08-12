@@ -24,14 +24,10 @@ export default function FeedPage() {
   const lastElementRef = useRef<HTMLDivElement>(null);
 
   const skillOptions = [
-    { value: 'design', label: 'Design', icon: '🎨' },
-    { value: 'frontend', label: 'Frontend', icon: '💻' },
-    { value: 'backend', label: 'Backend', icon: '⚙️' },
-    { value: 'ai', label: 'AI', icon: '🤖' },
-    { value: 'writing', label: 'Writing', icon: '✍️' },
-    { value: 'database', label: 'Database', icon: '🗄️' },
-    { value: 'algorithm', label: 'Algorithm', icon: '🧮' },
-    { value: 'system', label: 'System', icon: '🏗️' },
+    { value: 'ai-ml', label: 'AI / Machine Learning', icon: '🤖' },
+    { value: 'cloud-devops', label: 'Cloud Computing & DevOps', icon: '☁️' },
+    { value: 'data-analytics', label: 'Data Science & Analytics', icon: '📊' },
+    { value: 'fullstack-dev', label: 'Full-Stack Software Development', icon: '💻' },
   ];
 
   const difficultyOptions = [

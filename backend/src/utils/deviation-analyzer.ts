@@ -13,14 +13,10 @@ export interface DeviationAnalysisInput {
   taskTitle: string;
   taskDifficulty: 'easy' | 'medium' | 'hard' | 'expert';
   skillArea:
-    | 'frontend'
-    | 'backend'
-    | 'content'
-    | 'data'
-    | 'ai'
-    | 'design'
-    | 'mobile'
-    | 'devops';
+    | 'ai-ml'
+    | 'cloud-devops'
+    | 'data-analytics'
+    | 'fullstack-dev';
   userSubmittedScore: number;
   aiAuditScore: number;
   userCode?: string;
@@ -61,24 +57,24 @@ const DEVIATION_THRESHOLDS: Record<
   string,
   Record<string, DeviationClassification[]>
 > = {
-  frontend: {
+  'fullstack-dev': {
     easy: [
       {
         type: 'none',
         threshold: 3,
-        description: 'Acceptable variance for simple frontend tasks',
+        description: 'Acceptable variance for simple full-stack tasks',
         actionRequired: 'No action needed',
       },
       {
         type: 'minor',
         threshold: 8,
-        description: 'Minor discrepancy in basic frontend evaluation',
+        description: 'Minor discrepancy in basic full-stack evaluation',
         actionRequired: 'Monitor for patterns',
       },
       {
         type: 'major',
         threshold: 15,
-        description: 'Significant disagreement in frontend quality assessment',
+        description: 'Significant disagreement in full-stack quality assessment',
         actionRequired: 'Flag for human review',
       },
       {
@@ -92,26 +88,26 @@ const DEVIATION_THRESHOLDS: Record<
       {
         type: 'none',
         threshold: 5,
-        description: 'Acceptable variance for intermediate frontend tasks',
+        description: 'Acceptable variance for intermediate full-stack tasks',
         actionRequired: 'No action needed',
       },
       {
         type: 'minor',
         threshold: 12,
-        description: 'Minor discrepancy in frontend complexity evaluation',
+        description: 'Minor discrepancy in full-stack complexity evaluation',
         actionRequired: 'Monitor for patterns',
       },
       {
         type: 'major',
         threshold: 20,
         description:
-          'Significant disagreement in frontend architecture assessment',
+          'Significant disagreement in full-stack architecture assessment',
         actionRequired: 'Flag for human review',
       },
       {
         type: 'critical',
         threshold: 999,
-        description: 'Critical mismatch in frontend evaluation',
+        description: 'Critical mismatch in full-stack evaluation',
         actionRequired: 'Immediate escalation required',
       },
     ],
@@ -119,25 +115,25 @@ const DEVIATION_THRESHOLDS: Record<
       {
         type: 'none',
         threshold: 8,
-        description: 'Acceptable variance for complex frontend tasks',
+        description: 'Acceptable variance for complex full-stack tasks',
         actionRequired: 'No action needed',
       },
       {
         type: 'minor',
         threshold: 15,
-        description: 'Minor discrepancy in advanced frontend evaluation',
+        description: 'Minor discrepancy in advanced full-stack evaluation',
         actionRequired: 'Monitor for patterns',
       },
       {
         type: 'major',
         threshold: 25,
-        description: 'Significant disagreement in frontend system design',
+        description: 'Significant disagreement in full-stack system design',
         actionRequired: 'Flag for human review',
       },
       {
         type: 'critical',
         threshold: 999,
-        description: 'Critical mismatch in complex frontend assessment',
+        description: 'Critical mismatch in complex full-stack assessment',
         actionRequired: 'Immediate escalation required',
       },
     ],
@@ -145,47 +141,47 @@ const DEVIATION_THRESHOLDS: Record<
       {
         type: 'none',
         threshold: 10,
-        description: 'Acceptable variance for expert frontend tasks',
+        description: 'Acceptable variance for expert full-stack tasks',
         actionRequired: 'No action needed',
       },
       {
         type: 'minor',
         threshold: 18,
-        description: 'Minor discrepancy in expert frontend evaluation',
+        description: 'Minor discrepancy in expert full-stack evaluation',
         actionRequired: 'Monitor for patterns',
       },
       {
         type: 'major',
         threshold: 30,
-        description: 'Significant disagreement in expert frontend architecture',
+        description: 'Significant disagreement in expert full-stack architecture',
         actionRequired: 'Flag for human review',
       },
       {
         type: 'critical',
         threshold: 999,
-        description: 'Critical mismatch in expert frontend assessment',
+        description: 'Critical mismatch in expert full-stack assessment',
         actionRequired: 'Immediate escalation required',
       },
     ],
   },
-  backend: {
+  'cloud-devops': {
     easy: [
       {
         type: 'none',
         threshold: 4,
-        description: 'Acceptable variance for simple backend tasks',
+        description: 'Acceptable variance for simple cloud/devops tasks',
         actionRequired: 'No action needed',
       },
       {
         type: 'minor',
         threshold: 10,
-        description: 'Minor discrepancy in basic backend evaluation',
+        description: 'Minor discrepancy in basic cloud/devops evaluation',
         actionRequired: 'Monitor for patterns',
       },
       {
         type: 'major',
         threshold: 18,
-        description: 'Significant disagreement in backend logic assessment',
+        description: 'Significant disagreement in cloud/devops logic assessment',
         actionRequired: 'Flag for human review',
       },
       {
@@ -199,25 +195,25 @@ const DEVIATION_THRESHOLDS: Record<
       {
         type: 'none',
         threshold: 6,
-        description: 'Acceptable variance for intermediate backend tasks',
+        description: 'Acceptable variance for intermediate cloud/devops tasks',
         actionRequired: 'No action needed',
       },
       {
         type: 'minor',
         threshold: 14,
-        description: 'Minor discrepancy in backend architecture evaluation',
+        description: 'Minor discrepancy in cloud/devops architecture evaluation',
         actionRequired: 'Monitor for patterns',
       },
       {
         type: 'major',
         threshold: 22,
-        description: 'Significant disagreement in backend system design',
+        description: 'Significant disagreement in cloud/devops system design',
         actionRequired: 'Flag for human review',
       },
       {
         type: 'critical',
         threshold: 999,
-        description: 'Critical mismatch in backend evaluation',
+        description: 'Critical mismatch in cloud/devops evaluation',
         actionRequired: 'Immediate escalation required',
       },
     ],
@@ -225,25 +221,25 @@ const DEVIATION_THRESHOLDS: Record<
       {
         type: 'none',
         threshold: 10,
-        description: 'Acceptable variance for complex backend tasks',
+        description: 'Acceptable variance for complex cloud/devops tasks',
         actionRequired: 'No action needed',
       },
       {
         type: 'minor',
         threshold: 18,
-        description: 'Minor discrepancy in advanced backend evaluation',
+        description: 'Minor discrepancy in advanced cloud/devops evaluation',
         actionRequired: 'Monitor for patterns',
       },
       {
         type: 'major',
         threshold: 28,
-        description: 'Significant disagreement in backend system architecture',
+        description: 'Significant disagreement in cloud/devops system architecture',
         actionRequired: 'Flag for human review',
       },
       {
         type: 'critical',
         threshold: 999,
-        description: 'Critical mismatch in complex backend assessment',
+        description: 'Critical mismatch in complex cloud/devops assessment',
         actionRequired: 'Immediate escalation required',
       },
     ],
@@ -251,47 +247,47 @@ const DEVIATION_THRESHOLDS: Record<
       {
         type: 'none',
         threshold: 12,
-        description: 'Acceptable variance for expert backend tasks',
+        description: 'Acceptable variance for expert cloud/devops tasks',
         actionRequired: 'No action needed',
       },
       {
         type: 'minor',
         threshold: 20,
-        description: 'Minor discrepancy in expert backend evaluation',
+        description: 'Minor discrepancy in expert cloud/devops evaluation',
         actionRequired: 'Monitor for patterns',
       },
       {
         type: 'major',
         threshold: 32,
-        description: 'Significant disagreement in expert backend architecture',
+        description: 'Significant disagreement in expert cloud/devops architecture',
         actionRequired: 'Flag for human review',
       },
       {
         type: 'critical',
         threshold: 999,
-        description: 'Critical mismatch in expert backend assessment',
+        description: 'Critical mismatch in expert cloud/devops assessment',
         actionRequired: 'Immediate escalation required',
       },
     ],
   },
-  content: {
+  'data-analytics': {
     easy: [
       {
         type: 'none',
         threshold: 5,
-        description: 'Acceptable variance for simple content tasks',
+        description: 'Acceptable variance for simple data analytics tasks',
         actionRequired: 'No action needed',
       },
       {
         type: 'minor',
         threshold: 12,
-        description: 'Minor discrepancy in basic content evaluation',
+        description: 'Minor discrepancy in basic data analytics evaluation',
         actionRequired: 'Monitor for patterns',
       },
       {
         type: 'major',
         threshold: 20,
-        description: 'Significant disagreement in content quality assessment',
+        description: 'Significant disagreement in data analytics quality assessment',
         actionRequired: 'Flag for human review',
       },
       {
@@ -305,25 +301,25 @@ const DEVIATION_THRESHOLDS: Record<
       {
         type: 'none',
         threshold: 7,
-        description: 'Acceptable variance for intermediate content tasks',
+        description: 'Acceptable variance for intermediate data analytics tasks',
         actionRequired: 'No action needed',
       },
       {
         type: 'minor',
         threshold: 15,
-        description: 'Minor discrepancy in content structure evaluation',
+        description: 'Minor discrepancy in data analytics structure evaluation',
         actionRequired: 'Monitor for patterns',
       },
       {
         type: 'major',
         threshold: 25,
-        description: 'Significant disagreement in content depth assessment',
+        description: 'Significant disagreement in data analytics depth assessment',
         actionRequired: 'Flag for human review',
       },
       {
         type: 'critical',
         threshold: 999,
-        description: 'Critical mismatch in content evaluation',
+        description: 'Critical mismatch in data analytics evaluation',
         actionRequired: 'Immediate escalation required',
       },
     ],
@@ -331,26 +327,26 @@ const DEVIATION_THRESHOLDS: Record<
       {
         type: 'none',
         threshold: 10,
-        description: 'Acceptable variance for complex content tasks',
+        description: 'Acceptable variance for complex data analytics tasks',
         actionRequired: 'No action needed',
       },
       {
         type: 'minor',
         threshold: 18,
-        description: 'Minor discrepancy in advanced content evaluation',
+        description: 'Minor discrepancy in advanced data analytics evaluation',
         actionRequired: 'Monitor for patterns',
       },
       {
         type: 'major',
         threshold: 28,
         description:
-          'Significant disagreement in content sophistication assessment',
+          'Significant disagreement in data analytics sophistication assessment',
         actionRequired: 'Flag for human review',
       },
       {
         type: 'critical',
         threshold: 999,
-        description: 'Critical mismatch in complex content assessment',
+        description: 'Critical mismatch in complex data analytics assessment',
         actionRequired: 'Immediate escalation required',
       },
     ],
@@ -358,47 +354,47 @@ const DEVIATION_THRESHOLDS: Record<
       {
         type: 'none',
         threshold: 12,
-        description: 'Acceptable variance for expert content tasks',
+        description: 'Acceptable variance for expert data analytics tasks',
         actionRequired: 'No action needed',
       },
       {
         type: 'minor',
         threshold: 20,
-        description: 'Minor discrepancy in expert content evaluation',
+        description: 'Minor discrepancy in expert data analytics evaluation',
         actionRequired: 'Monitor for patterns',
       },
       {
         type: 'major',
         threshold: 30,
-        description: 'Significant disagreement in expert content analysis',
+        description: 'Significant disagreement in expert data analytics analysis',
         actionRequired: 'Flag for human review',
       },
       {
         type: 'critical',
         threshold: 999,
-        description: 'Critical mismatch in expert content assessment',
+        description: 'Critical mismatch in expert data analytics assessment',
         actionRequired: 'Immediate escalation required',
       },
     ],
   },
-  data: {
+  'ai-ml': {
     easy: [
       {
         type: 'none',
         threshold: 4,
-        description: 'Acceptable variance for simple data tasks',
+        description: 'Acceptable variance for simple AI/ML tasks',
         actionRequired: 'No action needed',
       },
       {
         type: 'minor',
         threshold: 10,
-        description: 'Minor discrepancy in basic data evaluation',
+        description: 'Minor discrepancy in basic AI/ML evaluation',
         actionRequired: 'Monitor for patterns',
       },
       {
         type: 'major',
         threshold: 18,
-        description: 'Significant disagreement in data analysis assessment',
+        description: 'Significant disagreement in AI/ML analysis assessment',
         actionRequired: 'Flag for human review',
       },
       {
@@ -412,25 +408,25 @@ const DEVIATION_THRESHOLDS: Record<
       {
         type: 'none',
         threshold: 6,
-        description: 'Acceptable variance for intermediate data tasks',
+        description: 'Acceptable variance for intermediate AI/ML tasks',
         actionRequired: 'No action needed',
       },
       {
         type: 'minor',
         threshold: 14,
-        description: 'Minor discrepancy in data methodology evaluation',
+        description: 'Minor discrepancy in AI/ML methodology evaluation',
         actionRequired: 'Monitor for patterns',
       },
       {
         type: 'major',
         threshold: 22,
-        description: 'Significant disagreement in data modeling assessment',
+        description: 'Significant disagreement in AI/ML modeling assessment',
         actionRequired: 'Flag for human review',
       },
       {
         type: 'critical',
         threshold: 999,
-        description: 'Critical mismatch in data evaluation',
+        description: 'Critical mismatch in AI/ML evaluation',
         actionRequired: 'Immediate escalation required',
       },
     ],
@@ -438,25 +434,25 @@ const DEVIATION_THRESHOLDS: Record<
       {
         type: 'none',
         threshold: 8,
-        description: 'Acceptable variance for complex data tasks',
+        description: 'Acceptable variance for complex AI/ML tasks',
         actionRequired: 'No action needed',
       },
       {
         type: 'minor',
         threshold: 16,
-        description: 'Minor discrepancy in advanced data evaluation',
+        description: 'Minor discrepancy in advanced AI/ML evaluation',
         actionRequired: 'Monitor for patterns',
       },
       {
         type: 'major',
         threshold: 26,
-        description: 'Significant disagreement in data science assessment',
+        description: 'Significant disagreement in AI/ML science assessment',
         actionRequired: 'Flag for human review',
       },
       {
         type: 'critical',
         threshold: 999,
-        description: 'Critical mismatch in complex data assessment',
+        description: 'Critical mismatch in complex AI/ML assessment',
         actionRequired: 'Immediate escalation required',
       },
     ],
@@ -464,26 +460,26 @@ const DEVIATION_THRESHOLDS: Record<
       {
         type: 'none',
         threshold: 10,
-        description: 'Acceptable variance for expert data tasks',
+        description: 'Acceptable variance for expert AI/ML tasks',
         actionRequired: 'No action needed',
       },
       {
         type: 'minor',
         threshold: 18,
-        description: 'Minor discrepancy in expert data evaluation',
+        description: 'Minor discrepancy in expert AI/ML evaluation',
         actionRequired: 'Monitor for patterns',
       },
       {
         type: 'major',
         threshold: 28,
         description:
-          'Significant disagreement in expert data science assessment',
+          'Significant disagreement in expert AI/ML science assessment',
         actionRequired: 'Flag for human review',
       },
       {
         type: 'critical',
         threshold: 999,
-        description: 'Critical mismatch in expert data assessment',
+        description: 'Critical mismatch in expert AI/ML assessment',
         actionRequired: 'Immediate escalation required',
       },
     ],
@@ -869,7 +865,7 @@ function determineSuggestedAction(
 
     case 'minor':
       // Flag for review if it's a high-value task or specific skill area
-      if (input.taskDifficulty === 'expert' || input.skillArea === 'ai') {
+      if (input.taskDifficulty === 'expert' || input.skillArea === 'ai-ml') {
         return 'flag_for_review';
       }
       return 'allow';
@@ -901,12 +897,12 @@ function identifyRiskFactors(
   }
 
   // Skill area specific risks
-  if (input.skillArea === 'ai' && deviationMagnitude > 15) {
+  if (input.skillArea === 'ai-ml' && deviationMagnitude > 15) {
     riskFactors.push('AI/ML evaluation complexity');
   }
 
-  if (input.skillArea === 'content' && deviationMagnitude > 15) {
-    riskFactors.push('Subjective content evaluation');
+  if (input.skillArea === 'data-analytics' && deviationMagnitude > 15) {
+    riskFactors.push('Subjective data analytics evaluation');
   }
 
   // Difficulty based risks
@@ -967,11 +963,10 @@ function generateSkillAreaContext(
   difficulty: string
 ): string {
   const contexts = {
-    frontend: `Frontend development evaluation considers UI/UX quality, responsive design, and modern web standards. ${difficulty} tasks require appropriate complexity in component architecture and user interaction.`,
-    backend: `Backend development evaluation focuses on API design, data handling, security, and scalability. ${difficulty} tasks require appropriate database design and system architecture.`,
-    content: `Content creation evaluation considers clarity, depth, structure, and audience engagement. ${difficulty} tasks require appropriate research depth and writing sophistication.`,
-    data: `Data science evaluation focuses on methodology, analysis quality, and insights generation. ${difficulty} tasks require appropriate statistical rigor and analytical depth.`,
-    ai: `AI/ML evaluation considers model selection, implementation quality, and problem-solving approach. ${difficulty} tasks require appropriate algorithmic complexity and technical sophistication.`,
+    'fullstack-dev': `Full-stack development evaluation considers both frontend and backend aspects. ${difficulty} tasks require appropriate complexity in application architecture and user experience.`,
+    'cloud-devops': `Cloud/DevOps evaluation focuses on infrastructure as code, containerization, and deployment automation. ${difficulty} tasks require appropriate configuration management and CI/CD pipelines.`,
+    'data-analytics': `Data analytics evaluation considers methodology, analysis quality, and insights generation. ${difficulty} tasks require appropriate statistical rigor and analytical depth.`,
+    'ai-ml': `AI/ML evaluation considers model selection, implementation quality, and problem-solving approach. ${difficulty} tasks require appropriate algorithmic complexity and technical sophistication.`,
   };
 
   return (

@@ -29,7 +29,7 @@ function createTestAuditResults(scenario: string): AuditResult[] {
       return Array.from({ length: 20 }, (_, i) => ({
         task_id: `task-${i}`,
         user_id: `user-${i}`,
-        skill_area: ['frontend', 'backend', 'content', 'data'][i % 4],
+        skill_area: ['ai-ml', 'cloud-devops', 'data-analytics', 'fullstack-dev'][i % 4],
         original_score: 80,
         new_score: 80 + (Math.random() - 0.5) * 4, // ±2 points
         deviation: Math.random() * 3, // 0-3 points
@@ -46,7 +46,7 @@ function createTestAuditResults(scenario: string): AuditResult[] {
         return {
           task_id: `task-${i}`,
           user_id: `user-${i}`,
-          skill_area: ['frontend', 'backend', 'content', 'data'][i % 4],
+          skill_area: ['ai-ml', 'cloud-devops', 'data-analytics', 'fullstack-dev'][i % 4],
           original_score: 80,
           new_score: 80 + (Math.random() - 0.5) * 20,
           deviation,
@@ -85,7 +85,7 @@ function createTestAuditResults(scenario: string): AuditResult[] {
         return {
           task_id: `task-${i}`,
           user_id: `user-${i}`,
-          skill_area: ['frontend', 'backend', 'content', 'data'][i % 4],
+          skill_area: ['ai-ml', 'cloud-devops', 'data-analytics', 'fullstack-dev'][i % 4],
           original_score: 80,
           new_score: 80 + (Math.random() - 0.5) * 40,
           deviation,
@@ -103,7 +103,7 @@ function createTestAuditResults(scenario: string): AuditResult[] {
         return {
           task_id: `task-${i}`,
           user_id: `user-${i}`,
-          skill_area: ['frontend', 'backend', 'content', 'data'][i % 4],
+          skill_area: ['ai-ml', 'cloud-devops', 'data-analytics', 'fullstack-dev'][i % 4],
           original_score: 80,
           new_score: 80 + (Math.random() - 0.5) * 60,
           deviation,
@@ -148,7 +148,7 @@ function createTestAuditResults(scenario: string): AuditResult[] {
         return {
           task_id: `task-${i}`,
           user_id: `user-${i}`,
-          skill_area: ['frontend', 'backend', 'content', 'data'][i % 4],
+          skill_area: ['ai-ml', 'cloud-devops', 'data-analytics', 'fullstack-dev'][i % 4],
           original_score: 80,
           new_score: 80 + (Math.random() - 0.5) * 40,
           deviation,

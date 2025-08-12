@@ -6,7 +6,7 @@ import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
-import { uploadFile, validateFile } from '../api/uploads';
+import { uploadFile } from '../api/uploads';
 import toast from 'react-hot-toast';
 
 interface UploadedFile {

@@ -60,10 +60,10 @@ export function Opportunities() {
 
   const categoryOptions = [
     { value: 'all', label: 'All Categories' },
-    { value: 'design', label: 'Design', icon: '🎨' },
-    { value: 'web', label: 'Web Development', icon: '💻' },
-    { value: 'ai', label: 'AI & ML', icon: '🤖' },
-    { value: 'writing', label: 'Writing', icon: '✍️' },
+    { value: 'fullstack-dev', label: 'Full-Stack Software Development', icon: '💻' },
+    { value: 'cloud-devops', label: 'Cloud Computing & DevOps', icon: '☁️' },
+    { value: 'data-analytics', label: 'Data Science & Analytics', icon: '📊' },
+    { value: 'ai-ml', label: 'AI / Machine Learning', icon: '🤖' },
   ];
 
   const sourceOptions = [

@@ -8,23 +8,23 @@ interface OfflineBannerProps {
 export const OfflineBanner: React.FC<OfflineBannerProps> = ({
   className = '',
 }) => {
-  const [isOffline, setIsOffline] = useState(false);
+  // const [isOffline, setIsOffline] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
     // Check initial online status
-    setIsOffline(!navigator.onLine);
+    // setIsOffline(!navigator.onLine);
     setIsVisible(!navigator.onLine && !isDismissed);
 
     // Listen for online/offline events
     const handleOnline = () => {
-      setIsOffline(false);
+      // setIsOffline(false);
       setIsVisible(false);
     };
 
     const handleOffline = () => {
-      setIsOffline(true);
+      // setIsOffline(true);
       setIsVisible(true);
       setIsDismissed(false);
     };

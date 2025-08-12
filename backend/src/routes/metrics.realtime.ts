@@ -70,7 +70,7 @@ const VALID_SKILLS = [
   'seo',
   'mobile',
   'desktop',
-  'web',
+  'ai-ml',
 ];
 
 // Enhanced validation with custom error messages

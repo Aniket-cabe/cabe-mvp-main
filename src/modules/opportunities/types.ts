@@ -1,5 +1,5 @@
 export type OpportunityType = 'gig' | 'internship';
-export type OpportunityCategory = 'design' | 'web' | 'ai' | 'writing';
+export type OpportunityCategory = 'cloud-devops' | 'fullstack-dev' | 'ai-ml' | 'data-analytics';
 export type OpportunitySource =
   | 'fiverr'
   | 'internshala'

@@ -344,7 +344,7 @@ const DonutChart: React.FC<{
   const circumference = 2 * Math.PI * radius;
 
   let currentOffset = 0;
-  const segments = data.map((item, index) => {
+  const segments = data.map((item) => {
     const percentage = total > 0 ? item.value / total : 0;
     const strokeDasharray = circumference * percentage;
     const strokeDashoffset = circumference - currentOffset;

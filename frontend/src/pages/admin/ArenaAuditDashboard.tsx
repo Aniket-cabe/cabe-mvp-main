@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import SubmissionInspector from '../../components/admin/SubmissionInspector';
 
 // Types
@@ -302,7 +302,10 @@ const ArenaAuditDashboard: React.FC = () => {
                       <option value="frontend">Frontend</option>
                       <option value="backend">Backend</option>
                       <option value="ai">AI</option>
-                      <option value="design">Design</option>
+                      <option value="fullstack-dev">Full-Stack Software Development</option>
+                      <option value="cloud-devops">Cloud Computing & DevOps</option>
+                      <option value="data-analytics">Data Science & Analytics</option>
+                      <option value="ai-ml">AI / Machine Learning</option>
                     </select>
                   </div>
 

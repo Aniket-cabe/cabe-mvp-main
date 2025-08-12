@@ -1,4 +1,4 @@
-import React from 'react';
+// import React from 'react';
 import { useAnalytics, useUserPermissions } from './hooks/useAnalytics';
 
 export default function TestAnalytics() {

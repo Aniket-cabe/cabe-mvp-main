@@ -11,7 +11,7 @@ export default function SkillDashboard() {
   const { skillSlug } = useParams<{ skillSlug: string }>();
 
   if (!skillSlug) {
-    return <Navigate to="/skills/design" replace />;
+    return <Navigate to="/skills/fullstack-dev" replace />;
   }
 
   const { data, loading, error } = useSkillData(skillSlug);

@@ -3,11 +3,24 @@ import { getTasks, getUsers, createSubmission } from '../lib/supabase-utils';
 import { supabaseAdmin } from '../lib/supabase-admin';
 import { getDetailedScore } from '../utils/ai-score-utils';
 import { calculateTaskPoints, Task } from '../lib/points';
+import type { AuthenticatedRequest } from '../types/express';
 import {
   attachUserRank,
   requireRank,
   logRankInfo,
 } from '../middleware/rankMiddleware';
+
+// Type alias for the User object to avoid repetitive type assertions
+type ArenaUser = {
+  id: string;
+  email: string;
+  name: string;
+  rank: string;
+  rankLevel: string;
+  username: string;
+  permissions: string[];
+  points: number;
+};
 import {
   getFeaturesForRank,
   getNextRankFeatures,
@@ -243,18 +256,17 @@ router.get('/submissions', async (req, res) => {
 
     // Validate skill filter if provided
     const validSkills = [
-      'frontend',
-      'backend',
-      'database',
-      'algorithm',
-      'system',
+      'ai-ml',
+      'cloud-devops',
+      'data-analytics',
+      'fullstack-dev',
     ];
     if (skill && !validSkills.includes(skill as string)) {
       logger.warn('❌ Invalid skill filter for submissions', { skill });
       return res.status(400).json({
         success: false,
         error:
-          'Skill must be one of: frontend, backend, database, algorithm, system',
+          'Skill must be one of: ai-ml, cloud-devops, data-analytics, fullstack-dev',
         timestamp: new Date().toISOString(),
       });
     }
@@ -1650,18 +1662,17 @@ router.get('/leaderboard', async (req, res) => {
 
     // Validate skill area if provided
     const validSkillAreas = [
-      'frontend',
-      'backend',
-      'database',
-      'algorithm',
-      'system',
+      'ai-ml',
+      'cloud-devops',
+      'data-analytics',
+      'fullstack-dev',
     ];
     if (skill_area && !validSkillAreas.includes(skill_area as string)) {
       logger.warn('❌ Invalid skill area parameter');
       return res.status(400).json({
         success: false,
         error:
-          'Invalid skill area. Valid options: frontend, backend, database, algorithm, system',
+          'Invalid skill area. Valid options: ai-ml, cloud-devops, data-analytics, fullstack-dev',
         timestamp: new Date().toISOString(),
       });
     }
@@ -1871,11 +1882,10 @@ router.get('/leaderboard/top', async (req, res) => {
 
     // Validate skill area if provided
     const validSkillAreas = [
-      'frontend',
-      'backend',
-      'database',
-      'algorithm',
-      'system',
+      'ai-ml',
+      'cloud-devops',
+      'data-analytics',
+      'fullstack-dev',
     ];
     if (skill_area && !validSkillAreas.includes(skill_area as string)) {
       logger.warn('❌ Invalid skill area parameter for top leaderboard', {
@@ -1884,7 +1894,7 @@ router.get('/leaderboard/top', async (req, res) => {
       return res.status(400).json({
         success: false,
         error:
-          'Invalid skill area. Valid options: frontend, backend, database, algorithm, system',
+          'Invalid skill area. Valid options: ai-ml, cloud-devops, data-analytics, fullstack-dev',
         timestamp: new Date().toISOString(),
       });
     }
@@ -2482,7 +2492,7 @@ router.get(
   async (req, res) => {
     try {
       // At this point, req.user is guaranteed to exist and have Silver+ rank
-      const user = req.user!;
+      const user = req.user! as ArenaUser;
 
       logger.info('🎯 Accessing premium features', {
         user_id: user.id,
@@ -2537,7 +2547,7 @@ router.get('/locked/:feature_name', attachUserRank, async (req, res) => {
     const { feature_name } = req.params;
 
     // At this point, req.user is guaranteed to exist from attachUserRank middleware
-    const user = req.user!;
+    const user = req.user! as ArenaUser;
 
     logger.info('🔐 Checking feature access', {
       user_id: user.id,
@@ -2685,7 +2695,7 @@ router.get('/locked/:feature_name', attachUserRank, async (req, res) => {
 router.get('/access-check', attachUserRank, async (req, res) => {
   try {
     // At this point, req.user is guaranteed to exist from attachUserRank middleware
-    const user = req.user!;
+    const user = req.user! as ArenaUser;
 
     logger.info('🔐 Checking Arena access status', {
       user_id: user.id,
@@ -2765,7 +2775,7 @@ router.get('/access-check', attachUserRank, async (req, res) => {
 router.get('/progress-bar', attachUserRank, async (req, res) => {
   try {
     // At this point, req.user is guaranteed to exist from attachUserRank middleware
-    const user = req.user!;
+    const user = req.user! as ArenaUser;
 
     logger.info('📊 Fetching user progress towards next rank', {
       user_id: user.id,
@@ -2839,7 +2849,7 @@ router.get('/progress-bar', attachUserRank, async (req, res) => {
 router.get('/user-score', attachUserRank, async (req, res) => {
   try {
     // At this point, req.user is guaranteed to exist from attachUserRank middleware
-    const user = req.user!;
+    const user = req.user! as ArenaUser;
 
     logger.info('📊 Fetching user score and historical changes', {
       user_id: user.id,
@@ -3014,7 +3024,7 @@ router.get('/user-score', attachUserRank, async (req, res) => {
 router.get('/task-history', attachUserRank, async (req, res) => {
   try {
     // At this point, req.user is guaranteed to exist from attachUserRank middleware
-    const user = req.user!;
+    const user = req.user! as ArenaUser;
 
     logger.info('📋 Fetching user task submission history', {
       user_id: user.id,
@@ -3245,7 +3255,7 @@ router.get('/task-history', attachUserRank, async (req, res) => {
 router.get('/summary-ai', attachUserRank, async (req, res) => {
   try {
     // At this point, req.user is guaranteed to exist from attachUserRank middleware
-    const user = req.user!;
+    const user = req.user! as ArenaUser;
 
     logger.info('🤖 Generating AI career progress summary', {
       user_id: user.id,
@@ -3566,7 +3576,7 @@ async function generateCareerProgressSummary(context: any): Promise<string> {
 router.post('/reflection-summary', attachUserRank, async (req, res) => {
   try {
     // At this point, req.user is guaranteed to exist from attachUserRank middleware
-    const user = req.user!;
+    const user = req.user! as ArenaUser;
 
     const {
       taskTitle,
@@ -3818,7 +3828,7 @@ async function generateTaskReflection(context: any): Promise<string> {
 router.get('/weekly-report', attachUserRank, async (req, res) => {
   try {
     // At this point, req.user is guaranteed to exist from attachUserRank middleware
-    const user = req.user!;
+    const user = req.user! as ArenaUser;
 
     logger.info('📊 Generating weekly performance report', {
       user_id: user.id,
@@ -4106,7 +4116,7 @@ router.get('/weekly-report', attachUserRank, async (req, res) => {
 router.get('/user-progress', attachUserRank, async (req, res) => {
   try {
     // At this point, req.user is guaranteed to exist from attachUserRank middleware
-    const user = req.user!;
+    const user = req.user! as ArenaUser;
 
     logger.info('📈 Generating all-time user progress report', {
       user_id: user.id,
@@ -4415,7 +4425,7 @@ function calculateWeeklyTrend(submissions: any[]): {
 router.get('/monthly-review', attachUserRank, async (req, res) => {
   try {
     // At this point, req.user is guaranteed to exist from attachUserRank middleware
-    const user = req.user!;
+    const user = req.user! as ArenaUser;
 
     logger.info('📅 Generating monthly performance review', {
       user_id: user.id,
@@ -4784,7 +4794,7 @@ router.get('/leaderboard/skill', attachUserRank, async (req, res) => {
     const { skill, rank, limit = 10 } = req.query;
 
     // Validate skill parameter
-    const validSkills = ['frontend', 'backend', 'content', 'data'];
+    const validSkills = ['ai-ml', 'cloud-devops', 'data-analytics', 'fullstack-dev'];
     if (!skill || !validSkills.includes(skill as string)) {
       logger.warn('❌ Invalid skill parameter provided:', {
         skill,
@@ -4979,7 +4989,7 @@ router.get('/leaderboard/skill', attachUserRank, async (req, res) => {
 router.post('/feedback', attachUserRank, async (req, res) => {
   try {
     // At this point, req.user is guaranteed to exist from attachUserRank middleware
-    const user = req.user!;
+    const user = req.user! as ArenaUser;
 
     const { task_id, rating, comment } = req.body;
 
@@ -5211,7 +5221,7 @@ router.post('/feedback', attachUserRank, async (req, res) => {
 router.get('/admin/feedback/overview', attachUserRank, async (req, res) => {
   try {
     // At this point, req.user is guaranteed to exist from attachUserRank middleware
-    const user = req.user!;
+    const user = req.user! as ArenaUser;
 
     // Check if user has admin privileges (assuming admin users have 'platinum' rank or higher)
     if (user.rankLevel !== 'platinum' && user.rankLevel !== 'admin') {
@@ -5629,7 +5639,7 @@ function generateFeedbackInsights(context: any): string[] {
 router.post('/tasks/:taskId/feedback', attachUserRank, async (req, res) => {
   try {
     // At this point, req.user is guaranteed to exist from attachUserRank middleware
-    const user = req.user!;
+    const user = req.user! as ArenaUser;
 
     const { taskId } = req.params;
     const { rating, comment } = req.body;
@@ -5901,7 +5911,7 @@ router.post('/tasks/:taskId/feedback', attachUserRank, async (req, res) => {
 router.get('/feedback/stats', attachUserRank, async (req, res) => {
   try {
     // At this point, req.user is guaranteed to exist from attachUserRank middleware
-    const user = req.user!;
+    const user = req.user! as ArenaUser;
 
     const { skill_area, date_range, limit = 50 } = req.query;
 
@@ -6152,7 +6162,7 @@ router.get('/feedback/stats', attachUserRank, async (req, res) => {
 router.get('/tasks/leaderboard', attachUserRank, async (req, res) => {
   try {
     // At this point, req.user is guaranteed to exist from attachUserRank middleware
-    const user = req.user!;
+    const user = req.user! as ArenaUser;
 
     const {
       skill_area,
@@ -6427,7 +6437,7 @@ router.get('/tasks/leaderboard', attachUserRank, async (req, res) => {
 router.get('/users/leaderboard', attachUserRank, async (req, res) => {
   try {
     // At this point, req.user is guaranteed to exist from attachUserRank middleware
-    const user = req.user!;
+    const user = req.user! as ArenaUser;
 
     const { skill_area, limit = 10 } = req.query;
 
@@ -6710,7 +6720,7 @@ router.get(
   async (req, res) => {
     try {
       // At this point, req.user is guaranteed to exist from attachUserRank middleware
-      const requestingUser = req.user!;
+      const requestingUser = req.user! as ArenaUser;
 
       const { userId } = req.params;
       const { skill_area } = req.query;
@@ -7105,7 +7115,7 @@ router.get(
   async (req, res) => {
     try {
       // At this point, req.user is guaranteed to exist and have platinum+ rank
-      const user = req.user!;
+      const user = req.user! as ArenaUser;
 
       logger.info('🔍 Admin requesting Arena scoring audit dashboard:', {
         user_id: user.id,
@@ -7251,7 +7261,7 @@ router.get(
   requireRank('Platinum'),
   async (req, res) => {
     try {
-      const user = req.user!;
+      const user = req.user! as ArenaUser;
       const { limit = 10, offset = 0, status, days = 30 } = req.query;
 
       logger.info('📊 Admin requesting audit history:', {
@@ -7409,7 +7419,7 @@ router.get(
   requireRank('Platinum'),
   async (req, res) => {
     try {
-      const user = req.user!;
+      const user = req.user! as ArenaUser;
       const { runId } = req.params;
 
       logger.info('📊 Admin requesting audit run details:', {
@@ -7560,7 +7570,7 @@ router.get(
   requireRank('Platinum'),
   async (req, res) => {
     try {
-      const user = req.user!;
+      const user = req.user! as ArenaUser;
       const {
         runId,
         days = 30,
@@ -7753,7 +7763,7 @@ router.get(
   requireRank('Platinum'),
   async (req, res) => {
     try {
-      const user = req.user!;
+      const user = req.user! as ArenaUser;
 
       logger.info(' Admin requesting all audit runs:', {
         userId: user.id,

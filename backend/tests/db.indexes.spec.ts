@@ -116,7 +116,7 @@ describe('Database Index Performance', () => {
         const { data, error } = await client
           .from('tasks')
           .select('*')
-          .eq('skill_area', 'frontend')
+          .eq('skill_area', 'ai-ml')
           .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -133,7 +133,7 @@ describe('Database Index Performance', () => {
         const { data, error } = await client
           .from('tasks')
           .select('*')
-          .eq('skill_area', 'backend')
+          .eq('skill_area', 'cloud-devops')
           .order('created_at', { ascending: false })
           .limit(10);
 
@@ -224,7 +224,7 @@ describe('Database Index Performance', () => {
         const { data, error } = await client
           .from('task_stats')
           .select('*')
-          .eq('skill_area', 'frontend')
+          .eq('skill_area', 'fullstack-dev')
           .order('total_submissions', { ascending: false });
 
         if (error) throw error;

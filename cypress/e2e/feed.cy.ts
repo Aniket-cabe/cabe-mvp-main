@@ -9,29 +9,29 @@ describe('AI Task Feed', () => {
           tasks: [
             {
               id: 'task-1',
-              title: 'Design a Modern Landing Page',
+              title: 'Build Machine Learning Model',
               description:
-                'Create a responsive landing page design for a SaaS product with modern UI/UX principles',
+                'Create a predictive model using Python and scikit-learn for data analysis',
               type: 'arena',
-              skill_area: 'design',
+              skill_area: 'ai-ml',
               points: 150,
               xp_value: 75,
               difficulty: 'medium',
               duration: 120,
               relevance_score: 92,
               relevance_reason:
-                'Perfect match for your design skills! This task will boost your Design XP and help you practice modern UI/UX principles.',
+                'Perfect match for your cloud/devops skills! This task will boost your Cloud Computing & DevOps XP and help you practice modern infrastructure principles.',
               created_at: '2024-01-15T10:00:00Z',
               is_active: true,
               tags: ['UI/UX', 'Responsive', 'SaaS'],
             },
             {
               id: 'task-2',
-              title: 'Build a REST API with Node.js',
+              title: 'Deploy Application to Cloud',
               description:
-                'Develop a RESTful API using Node.js, Express, and MongoDB for a task management system',
+                'Set up CI/CD pipeline and deploy a web application to AWS/Azure/GCP',
               type: 'arena',
-              skill_area: 'backend',
+              skill_area: 'cloud-devops',
               points: 200,
               xp_value: 100,
               difficulty: 'hard',
@@ -45,11 +45,11 @@ describe('AI Task Feed', () => {
             },
             {
               id: 'task-3',
-              title: 'Create a React Component Library',
+              title: 'Create Data Analysis Dashboard',
               description:
-                'Build a reusable component library with TypeScript and Storybook documentation',
+                'Build interactive dashboards with data visualization using modern tools',
               type: 'challenge',
-              skill_area: 'frontend',
+              skill_area: 'data-analytics',
               points: 300,
               xp_value: 150,
               difficulty: 'hard',
@@ -70,7 +70,7 @@ describe('AI Task Feed', () => {
           },
           metadata: {
             user_rank: 'bronze',
-            skills: ['design', 'web', 'ai'],
+            skills: ['ai-ml', 'cloud-devops', 'data-analytics'],
             total_recommendations: 3,
             generated_at: new Date().toISOString(),
           },
@@ -99,11 +99,11 @@ describe('AI Task Feed', () => {
     cy.get('[data-testid="task-card-task-1"]').within(() => {
       cy.get('[data-testid="task-title"]').should(
         'contain',
-        'Design a Modern Landing Page'
+        'Build Machine Learning Model'
       );
       cy.get('[data-testid="task-description"]').should(
         'contain',
-        'Create a responsive landing page design'
+        'Create a predictive model'
       );
       cy.get('[data-testid="task-points"]').should('contain', '150');
       cy.get('[data-testid="task-xp"]').should('contain', '75');
@@ -128,7 +128,7 @@ describe('AI Task Feed', () => {
     );
     cy.get('[data-testid="why-this-tooltip"]').should(
       'contain',
-      'Perfect match for your design skills'
+      'Perfect match for your AI/ML skills'
     );
   });
 
@@ -226,11 +226,11 @@ describe('AI Task Feed', () => {
     // Open filters
     cy.contains('Filters').click();
 
-    // Select Design skill
-    cy.contains('🎨 Design').click();
+    // Select Cloud Computing & DevOps skill
+    cy.contains('☁️ Cloud Computing & DevOps').click();
     cy.contains('Apply Filters').click();
 
-    // Should only show design tasks
+    // Should only show cloud/devops tasks
     cy.get('[data-testid="task-card-task-1"]').should('be.visible');
     cy.get('[data-testid="task-card-task-2"]').should('not.exist');
   });
@@ -273,7 +273,7 @@ describe('AI Task Feed', () => {
 
     // Open filters and apply some
     cy.contains('Filters').click();
-    cy.contains('🎨 Design').click();
+    cy.contains('☁️ Cloud Computing & DevOps').click();
     cy.contains('Apply Filters').click();
 
     // Should filter results
@@ -429,7 +429,7 @@ describe('AI Task Feed', () => {
               title: 'New Task',
               description: 'A new task for testing',
               type: 'arena',
-              skill_area: 'design',
+              skill_area: 'cloud-devops',
               points: 100,
               xp_value: 50,
               difficulty: 'easy',

@@ -73,7 +73,7 @@ export function useAuth() {
       }
 
       const data = await response.json();
-      
+
       localStorage.setItem('authToken', data.token);
       localStorage.setItem('userData', JSON.stringify(data.user));
 

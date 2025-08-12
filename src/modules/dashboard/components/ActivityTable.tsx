@@ -74,14 +74,10 @@ export default function ActivityTable({
 
   const getSkillColor = (skill: string) => {
     const colors = {
-      design: 'text-pink-600 bg-pink-50 border-pink-200',
-      frontend: 'text-emerald-600 bg-emerald-50 border-emerald-200',
-      backend: 'text-blue-600 bg-blue-50 border-blue-200',
-      ai: 'text-violet-600 bg-violet-50 border-violet-200',
-      writing: 'text-amber-600 bg-amber-50 border-amber-200',
-      database: 'text-purple-600 bg-purple-50 border-purple-200',
-      algorithm: 'text-orange-600 bg-orange-50 border-orange-200',
-      system: 'text-red-600 bg-red-50 border-red-200',
+      'fullstack-dev': 'text-purple-600 bg-purple-50 border-purple-200',
+      'cloud-devops': 'text-blue-600 bg-blue-50 border-blue-200',
+      'data-analytics': 'text-emerald-600 bg-emerald-50 border-emerald-200',
+      'ai-ml': 'text-violet-600 bg-violet-50 border-violet-200',
     };
     return (
       colors[skill as keyof typeof colors] ||

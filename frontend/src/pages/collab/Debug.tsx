@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { toast } from 'react-hot-toast';
 import { BugAntIcon, PlayIcon, PauseIcon } from '@heroicons/react/24/outline';
@@ -14,35 +14,37 @@ export const CollaborationDebug: React.FC<DebugProps> = ({
   currentUserId,
   currentUsername,
 }) => {
-  const [logs, setLogs] = useState<
-    Array<{ id: string; message: string; username: string; timestamp: Date }>
-  >([]);
+  // const [logs, setLogs] = useState<
+  //   Array<{ id: string; message: string; username: string; timestamp: Date }>
+  // >([]);
   const [isRunning, setIsRunning] = useState(false);
   const [newLogMessage, setNewLogMessage] = useState('');
 
   const { sendMessage } = useWebSocket({
     url: `ws://localhost:8081`,
-    onMessage: handleWebSocketMessage,
+    handlers: {
+      chatMessage: () => {}, // Placeholder handler
+    },
   });
 
-  function handleWebSocketMessage(event: any) {
-    try {
-      const data = JSON.parse(event.data);
-      if (data.type === 'debug_state' && data.action === 'add_log') {
-        setLogs((prev) => [
-          ...prev,
-          {
-            id: `log_${Date.now()}`,
-            message: data.data.message,
-            username: data.data.username,
-            timestamp: new Date(),
-          },
-        ]);
-      }
-    } catch (error) {
-      console.error('Error parsing WebSocket message:', error);
-    }
-  }
+  // function handleWebSocketMessage(event: any) {
+  //   try {
+  //     const data = JSON.parse(event.data);
+  //     if (data.type === 'debug_state' && data.action === 'add_log') {
+  //       setLogs((prev) => [
+  //         ...prev,
+  //         {
+  //           id: `log_${Date.now()}`,
+  //           message: data.data.message,
+  //           username: data.data.username,
+  //           timestamp: new Date(),
+  //         },
+  //       ]);
+  //     }
+  //   } catch (error) {
+  //     console.error('Error parsing WebSocket message:', error);
+  //   }
+  // }
 
   function handleAddLog() {
     if (!newLogMessage.trim()) return;
@@ -97,7 +99,7 @@ export const CollaborationDebug: React.FC<DebugProps> = ({
         <h3 className="text-lg font-semibold mb-4 text-gray-800">Debug Logs</h3>
 
         <div className="bg-white border rounded-lg p-4 max-h-64 overflow-y-auto mb-4">
-          {logs.length === 0 ? (
+          {/* {logs.length === 0 ? (
             <p className="text-gray-500 text-sm">No logs yet</p>
           ) : (
             <div className="space-y-2">
@@ -113,7 +115,8 @@ export const CollaborationDebug: React.FC<DebugProps> = ({
                 </div>
               ))}
             </div>
-          )}
+          )} */}
+          <p className="text-gray-500 text-sm">No logs yet</p>
         </div>
 
         <div className="flex space-x-2">

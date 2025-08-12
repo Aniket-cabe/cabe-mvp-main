@@ -78,7 +78,7 @@ const auditTrailActions: ReviewActionInput[] = [
     deviationType: 'minor',
     reviewer: 'admin-2',
     taskTitle: 'Create a blog system',
-    skillArea: 'backend',
+    skillArea: 'cloud-devops',
     userScore: 85,
     aiScore: 78,
     taskDifficulty: 'medium',
@@ -90,7 +90,7 @@ const auditTrailActions: ReviewActionInput[] = [
     deviationType: 'minor',
     reviewer: 'admin-3',
     taskTitle: 'Create a blog system',
-    skillArea: 'backend',
+    skillArea: 'cloud-devops',
     userScore: 85,
     aiScore: 78,
     taskDifficulty: 'medium',
@@ -218,14 +218,14 @@ async function runTests() {
   console.log('----------------------');
 
   const contexts = [
-    { skillArea: 'ai', difficulty: 'expert', taskTitle: 'Implement ML model' },
+    { skillArea: 'ai-ml', difficulty: 'expert', taskTitle: 'Implement ML model' },
     {
       skillArea: 'security',
       difficulty: 'hard',
       taskTitle: 'Build authentication system',
     },
     {
-      skillArea: 'design',
+      skillArea: 'cloud-devops',
       difficulty: 'easy',
       taskTitle: 'Create landing page',
     },

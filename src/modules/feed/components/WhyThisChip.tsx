@@ -18,15 +18,10 @@ export default function WhyThisChip({
 
   const getSkillColor = (skill: string) => {
     const colors = {
-      design: 'text-pink-600',
-      web: 'text-emerald-600',
-      ai: 'text-violet-600',
-      writing: 'text-amber-600',
-      frontend: 'text-emerald-600',
-      backend: 'text-blue-600',
-      database: 'text-purple-600',
-      algorithm: 'text-orange-600',
-      system: 'text-red-600',
+      'fullstack-dev': 'text-purple-600',
+      'cloud-devops': 'text-blue-600',
+      'data-analytics': 'text-emerald-600',
+      'ai-ml': 'text-violet-600',
     };
     return colors[skill as keyof typeof colors] || 'text-gray-600';
   };

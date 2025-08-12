@@ -161,7 +161,9 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
                 </label>
                 <DatePicker
                   selected={filters.from}
-                  onChange={(date: Date) => handleFilterChange('from', date)}
+                  onChange={(date: Date | null) =>
+                    date && handleFilterChange('from', date)
+                  }
                   selectsStart
                   startDate={filters.from}
                   endDate={filters.to}
@@ -177,7 +179,9 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
                 </label>
                 <DatePicker
                   selected={filters.to}
-                  onChange={(date: Date) => handleFilterChange('to', date)}
+                  onChange={(date: Date | null) =>
+                    date && handleFilterChange('to', date)
+                  }
                   selectsEnd
                   startDate={filters.from}
                   endDate={filters.to}

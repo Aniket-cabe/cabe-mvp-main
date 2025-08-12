@@ -101,7 +101,7 @@ export const useAIFeatures = (baseUrl: string = '/api/ai') => {
         if (report.similarity > 0.8) {
           toast.error('🚨 High similarity detected! Please review your code.');
         } else if (report.similarity > 0.6) {
-          toast.warning(
+          toast.error(
             '⚠️ Moderate similarity found. Consider making your code more unique.'
           );
         } else {

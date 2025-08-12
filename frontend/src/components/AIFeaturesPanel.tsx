@@ -17,7 +17,7 @@ interface AIFeaturesPanelProps {
 export const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
   code = '',
   language = 'javascript',
-  userId = 'current-user',
+  // userId = 'current-user', // Unused variable
 }) => {
   const [activeTab, setActiveTab] = useState<
     'plagiarism' | 'learning' | 'suggestions'
@@ -156,9 +156,7 @@ export const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
             <div className="flex items-start">
               <AcademicCapIcon className="w-5 h-5 text-purple-600 mt-0.5 mr-3" />
               <div>
-                <h3 className="font-medium text-purple-900">
-                  Learning Paths
-                </h3>
+                <h3 className="font-medium text-purple-900">Learning Paths</h3>
                 <p className="text-sm text-purple-700 mt-1">
                   Get personalized learning recommendations based on your code.
                 </p>
@@ -185,7 +183,9 @@ export const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
               <div className="flex items-start">
                 <ExclamationTriangleIcon className="w-4 h-4 text-red-600 mt-0.5 mr-2" />
-                <span className="text-sm text-red-700">{learningPaths.error}</span>
+                <span className="text-sm text-red-700">
+                  {learningPaths.error}
+                </span>
               </div>
             </div>
           )}
@@ -199,7 +199,9 @@ export const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
                   className="bg-white border border-gray-200 rounded-lg p-3"
                 >
                   <h5 className="font-medium text-gray-900">{path.title}</h5>
-                  <p className="text-sm text-gray-600 mt-1">{path.description}</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {path.description}
+                  </p>
                   <div className="mt-2 flex flex-wrap gap-1">
                     {path.tags?.map((tag, tagIndex) => (
                       <span
@@ -252,7 +254,9 @@ export const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
               <div className="flex items-start">
                 <ExclamationTriangleIcon className="w-4 h-4 text-red-600 mt-0.5 mr-2" />
-                <span className="text-sm text-red-700">{suggestions.error}</span>
+                <span className="text-sm text-red-700">
+                  {suggestions.error}
+                </span>
               </div>
             </div>
           )}
@@ -268,7 +272,9 @@ export const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
                   <div className="flex items-start">
                     <LightBulbIcon className="w-4 h-4 text-yellow-600 mt-0.5 mr-2" />
                     <div>
-                      <p className="text-sm text-gray-900">{suggestion.message}</p>
+                      <p className="text-sm text-gray-900">
+                        {suggestion.message}
+                      </p>
                       {suggestion.line && (
                         <p className="text-xs text-gray-500 mt-1">
                           Line {suggestion.line}

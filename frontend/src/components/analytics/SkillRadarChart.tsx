@@ -1,4 +1,3 @@
-
 import {
   Radar,
   RadarChart,
@@ -95,7 +94,7 @@ export default function SkillRadarChart({
 
       {/* Skill Legend */}
       <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-        {data.map((skill, index) => (
+        {data.map((skill) => (
           <div key={skill.skill} className="flex items-center justify-between">
             <span className="text-gray-600 dark:text-gray-400">
               {skill.skill}

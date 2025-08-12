@@ -63,8 +63,8 @@ async function testAuditDashboardAPI() {
 
     // Test 6: Filter by skill area
     console.log('\n6. Testing getAuditRunsBySkillArea()...');
-    const backendRuns = await getAuditRunsBySkillArea('backend');
-    console.log(`✅ Found ${backendRuns.length} backend runs`);
+    const cloudDevopsRuns = await getAuditRunsBySkillArea('cloud-devops');
+    console.log(`✅ Found ${cloudDevopsRuns.length} cloud-devops runs`);
 
     // Test 7: Get all skill areas
     console.log('\n7. Testing getAllSkillAreas()...');
@@ -111,9 +111,9 @@ async function testAuditDashboardAPI() {
       `✅ Search results for "navigation": ${searchResults.length} runs`
     );
 
-    const backendSearch = await searchAuditRuns('backend');
+    const cloudDevopsSearch = await searchAuditRuns('cloud-devops');
     console.log(
-      `✅ Search results for "backend": ${backendSearch.length} runs`
+      `✅ Search results for "cloud-devops": ${cloudDevopsSearch.length} runs`
     );
 
     // Test 12: Test non-existent data

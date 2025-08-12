@@ -16,10 +16,10 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-let deferredPrompt: any;
+// let deferredPrompt: any;
 window.addEventListener('beforeinstallprompt', (e: Event) => {
   // @ts-ignore Chrome-only
   (e as any).preventDefault?.();
-  deferredPrompt = e;
+  // deferredPrompt = e;
   window.dispatchEvent(new CustomEvent('cabe-a2hs-available'));
 });

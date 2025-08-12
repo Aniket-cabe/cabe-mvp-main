@@ -37,7 +37,7 @@ describe('User Dashboard', () => {
               id: 'sub-1',
               taskTitle: 'Design a Modern Landing Page',
               taskType: 'arena',
-              skillArea: 'design',
+              skillArea: 'ai-ml',
               status: 'approved',
               score: 92,
               points: 150,
@@ -48,7 +48,7 @@ describe('User Dashboard', () => {
               id: 'sub-2',
               taskTitle: 'Build a REST API with Node.js',
               taskType: 'arena',
-              skillArea: 'backend',
+              skillArea: 'cloud-devops',
               status: 'pending',
               submittedAt: '2024-01-14T16:45:00Z',
             },
@@ -56,7 +56,7 @@ describe('User Dashboard', () => {
               id: 'sub-3',
               taskTitle: 'Create a React Component Library',
               taskType: 'challenge',
-              skillArea: 'frontend',
+              skillArea: 'fullstack-dev',
               status: 'approved',
               score: 88,
               points: 200,
@@ -374,9 +374,9 @@ describe('User Dashboard', () => {
     cy.wait('@getUserSummary');
 
     // Check skill area badges
-    cy.contains('design').should('be.visible');
-    cy.contains('backend').should('be.visible');
-    cy.contains('frontend').should('be.visible');
+    cy.contains('ai-ml').should('be.visible');
+    cy.contains('cloud-devops').should('be.visible');
+    cy.contains('fullstack-dev').should('be.visible');
   });
 
   it('should show task type icons correctly', () => {

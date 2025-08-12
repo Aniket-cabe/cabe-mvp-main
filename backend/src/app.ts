@@ -23,13 +23,29 @@ import {
   mongoSanitizeProtection,
   sqlInjectionProtection,
 } from './middleware/security';
+import {
+  generateCSRFTokenMiddleware,
+  validateCSRFTokenMiddleware,
+  refreshCSRFTokenMiddleware,
+  cleanupCSRFTokenMiddleware,
+} from './middleware/csrf';
 
 // Import routes
 import arenaRouter from './routes/arena';
-import adminRouter from './routes/admin-api-router';
+import adminApiRouter from './routes/admin-api-router';
 import metricsRealtimeRouter from './routes/metrics.realtime';
 import integrationsRouter from './routes/integrations.routes';
 import uploadsRouter from './routes/uploads';
+import tasksRouter from './routes/tasks';
+import pointsRouter from './routes/points';
+import cabotRouter from './routes/cabot';
+import taskForgeRouter from './routes/task-forge';
+import pointDecayRouter from './routes/point-decay';
+import authRouter from './routes/auth.routes';
+import achievementsRouter from './routes/achievements';
+import referralsRouter from './routes/referrals';
+import adminRouter from './routes/admin';
+import performanceRouter from './routes/performance';
 
 // Import utilities
 import logger from './utils/logger';
@@ -164,13 +180,10 @@ const swaggerOptions = {
             skillArea: {
               type: 'string',
               enum: [
-                'frontend',
-                'backend',
-                'fullstack',
-                'mobile',
-                'ai',
-                'devops',
-                'design',
+                'ai-ml',
+                'cloud-devops',
+                'data-analytics',
+                'fullstack-dev',
               ],
             },
             difficulty: {
@@ -243,7 +256,13 @@ app.use(securityHeaders);
 app.use(rateLimitMiddleware);
 app.use(slowDownMiddleware);
 
-// 8. Request logging
+// 8. CSRF protection
+app.use(generateCSRFTokenMiddleware);
+app.use(validateCSRFTokenMiddleware);
+app.use(refreshCSRFTokenMiddleware);
+app.use(cleanupCSRFTokenMiddleware);
+
+// 9. Request logging
 app.use(requestLogger);
 
 // ============================================================================
@@ -321,18 +340,41 @@ app.get('/api/status', (req, res) => {
 
 // Mount API routes
 app.use('/api/arena', arenaRouter);
+app.use('/api/admin-api', adminApiRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/uploads', uploadsRouter);
 app.use('/api/metrics', metricsRealtimeRouter);
 app.use('/api/integrations', integrationsRouter);
 app.use('/api/auth', ssoRoutes);
+app.use('/api/auth', authRouter);
+app.use('/api/tasks', tasksRouter);
+app.use('/api/points', pointsRouter);
+app.use('/api/cabot', cabotRouter);
+app.use('/api/task-forge', taskForgeRouter);
+app.use('/api/point-decay', pointDecayRouter);
+app.use('/api/achievements', achievementsRouter);
+app.use('/api/referrals', referralsRouter);
+app.use('/api/performance', performanceRouter);
+
+// Mount versioned API routes
+import v1Router from './routes/v1';
+app.use('/api/v1', v1Router);
 
 logger.info('🎯 Arena API mounted at /api/arena');
-logger.info('🛡️ Admin API mounted at /api/admin');
+logger.info('🛡️ Admin API mounted at /api/admin-api');
+logger.info('👨‍💼 Admin Panel mounted at /api/admin');
 logger.info('⬆️ Uploads API mounted at /api/uploads');
 logger.info('📈 Metrics API mounted at /api/metrics');
 logger.info('🔗 Integrations API mounted at /api/integrations');
 logger.info('🔐 SSO Auth routes mounted at /api/auth');
+logger.info('📋 Tasks API mounted at /api/tasks');
+logger.info('🏆 Points API mounted at /api/points');
+logger.info('🤖 CaBOT API mounted at /api/cabot');
+logger.info('🎯 Task Forge API mounted at /api/task-forge');
+logger.info('📉 Point Decay API mounted at /api/point-decay');
+logger.info('🏆 Achievements API mounted at /api/achievements');
+logger.info('👥 Referrals API mounted at /api/referrals');
+logger.info('⚡ Performance API mounted at /api/performance');
 
 // ============================================================================
 // ERROR HANDLING

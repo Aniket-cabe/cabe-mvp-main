@@ -10,10 +10,10 @@ const COURSES_PER_PAGE = 10;
 
 const CATEGORIES: CourseCategory[] = [
   { id: 'all', label: 'All', color: 'bg-gray-100 text-gray-800' },
-  { id: 'design', label: 'Design', color: 'bg-purple-100 text-purple-800' },
-  { id: 'web', label: 'Web', color: 'bg-blue-100 text-blue-800' },
-  { id: 'ai', label: 'AI', color: 'bg-green-100 text-green-800' },
-  { id: 'writing', label: 'Writing', color: 'bg-orange-100 text-orange-800' },
+  { id: 'ai-ml', label: 'AI/ML', color: 'bg-purple-100 text-purple-800' },
+  { id: 'cloud-devops', label: 'Cloud/DevOps', color: 'bg-blue-100 text-blue-800' },
+  { id: 'data-analytics', label: 'Data Analytics', color: 'bg-green-100 text-green-800' },
+  { id: 'fullstack-dev', label: 'Full-Stack', color: 'bg-orange-100 text-orange-800' },
 ];
 
 export default function LearnIndex() {

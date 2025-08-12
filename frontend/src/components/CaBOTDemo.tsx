@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Brain,
   Play,
@@ -86,10 +86,10 @@ export default function CaBOTDemo({ className = '' }: CaBOTDemoProps) {
     }
   };
 
-  const getActionColor = (actionId: DemoAction) => {
-    const action = demoActions.find((a) => a.id === actionId);
-    return action?.color || 'gray';
-  };
+  // const getActionColor = (actionId: DemoAction) => {
+  //   const action = demoActions.find((a) => a.id === actionId);
+  //   return action?.color || 'gray';
+  // };
 
   return (
     <div

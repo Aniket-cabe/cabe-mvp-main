@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useWebSocket } from '../../hooks/useWebSocket';
-import { toast } from 'react-hot-toast';
-import { PaperAirplaneIcon, UserCircleIcon } from '@heroicons/react/24/outline';
+// import { toast } from 'react-hot-toast';
+import { PaperAirplaneIcon } from '@heroicons/react/24/outline';
 
 interface ChatMessage {
   messageId: string;
@@ -19,21 +19,22 @@ interface ChatProps {
 }
 
 export const CollaborationChat: React.FC<ChatProps> = ({
-  roomId,
+  // roomId,
   currentUserId,
   currentUsername,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { sendMessage } = useWebSocket({
+  const { sendMessage, isConnected } = useWebSocket({
     url: `ws://localhost:8081?token=${localStorage.getItem('authToken')}`,
-    onMessage: handleWebSocketMessage,
-    onConnect: () => setIsConnected(true),
-    onDisconnect: () => setIsConnected(false),
+    handlers: {
+      chatMessage: (data) => {
+        setMessages((prev) => [...prev, data.message]);
+      },
+    },
   });
 
   useEffect(() => {
@@ -47,40 +48,40 @@ export const CollaborationChat: React.FC<ChatProps> = ({
     }
   }, []);
 
-  function handleWebSocketMessage(event: any) {
-    const message = JSON.parse(event.data);
+  // function handleWebSocketMessage(event: any) {
+  //   const message = JSON.parse(event.data);
 
-    switch (message.type) {
-      case 'room_state':
-        if (message.chat) {
-          setMessages(message.chat);
-        }
-        break;
+  //   switch (message.type) {
+  //     case 'room_state':
+  //       if (message.chat) {
+  //         setMessages(message.chat);
+  //       }
+  //       break;
 
-      case 'chat_message':
-        setMessages((prev) => [...prev, message.message]);
-        break;
+  //     case 'chat_message':
+  //       setMessages((prev) => [...prev, message.message]);
+  //       break;
 
-      case 'user_joined':
-        addSystemMessage(`${message.user.username} joined the chat 👋`);
-        break;
+  //     case 'user_joined':
+  //       addSystemMessage(`${message.user.username} joined the chat 👋`);
+  //       break;
 
-      case 'user_left':
-        addSystemMessage(`${message.username || 'Someone'} left the chat 👋`);
-        break;
-    }
-  }
+  //     case 'user_left':
+  //       addSystemMessage(`${message.username || 'Someone'} left the chat 👋`);
+  //       break;
+  //   }
+  // }
 
-  function addSystemMessage(content: string) {
-    const systemMessage: ChatMessage = {
-      messageId: `system-${Date.now()}`,
-      userId: 'system',
-      username: 'System',
-      content,
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, systemMessage]);
-  }
+  // function addSystemMessage(content: string) {
+  //   const systemMessage: ChatMessage = {
+  //     messageId: `system-${Date.now()}`,
+  //     userId: 'system',
+  //     username: 'System',
+  //     content,
+  //     timestamp: new Date(),
+  //   };
+  //   setMessages((prev) => [...prev, systemMessage]);
+  // }
 
   function handleSendMessage(e: React.FormEvent) {
     e.preventDefault();

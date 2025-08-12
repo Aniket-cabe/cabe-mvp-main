@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { toast } from 'react-hot-toast';
 import {
-  ChatBubbleLeftIcon,
-  CheckCircleIcon,
+  // ChatBubbleLeftIcon,
+  // CheckCircleIcon,
   XCircleIcon,
 } from '@heroicons/react/24/outline';
 
@@ -25,7 +25,7 @@ interface ReviewProps {
 }
 
 export const CollaborationReview: React.FC<ReviewProps> = ({
-  submissionId,
+  // submissionId,
   currentUserId,
   currentUsername,
   isReviewer,
@@ -33,34 +33,34 @@ export const CollaborationReview: React.FC<ReviewProps> = ({
   const [comments, setComments] = useState<ReviewComment[]>([]);
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
   const [newComment, setNewComment] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
+  // const [isConnected, setIsConnected] = useState(false);
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
   const { sendMessage } = useWebSocket({
     url: `ws://localhost:8081?token=${localStorage.getItem('authToken')}`,
-    onMessage: handleWebSocketMessage,
-    onConnect: () => setIsConnected(true),
-    onDisconnect: () => setIsConnected(false),
+    handlers: {
+      chatMessage: () => {}, // Placeholder handler
+    },
   });
 
   useEffect(() => {
     scrollToBottom();
   }, [comments]);
 
-  function handleWebSocketMessage(event: any) {
-    const message = JSON.parse(event.data);
+  // function handleWebSocketMessage(event: any) {
+  //   const message = JSON.parse(event.data);
 
-    switch (message.type) {
-      case 'review_comment':
-        setComments((prev) => [...prev, message.comment]);
-        break;
-    }
-  }
+  //   switch (message.type) {
+  //     case 'review_comment':
+  //       setComments((prev) => [...prev, message.comment]);
+  //       break;
+  //   }
+  // }
 
-  function handleLineClick(lineNumber: number) {
-    if (!isReviewer) return;
-    setSelectedLine(lineNumber);
-  }
+  // function handleLineClick(lineNumber: number) {
+  //   if (!isReviewer) return;
+  //   setSelectedLine(lineNumber);
+  // }
 
   function handleAddComment(e: React.FormEvent) {
     e.preventDefault();

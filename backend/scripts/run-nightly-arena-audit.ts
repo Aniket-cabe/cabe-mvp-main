@@ -288,7 +288,7 @@ class NightlyArenaAudit {
    * Fetch 20 random submissions (5 per skill area)
    */
   private async fetchRandomSubmissions(): Promise<AuditSubmission[]> {
-    const skillAreas = ['frontend', 'backend', 'content', 'data'];
+    const skillAreas = ['ai-ml', 'cloud-devops', 'data-analytics', 'fullstack-dev'];
     const submissionsPerSkill = 5;
     const allSubmissions: AuditSubmission[] = [];
 

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAnalytics, useUserPermissions } from '../../hooks/useAnalytics';
 import KPICards from '../../components/analytics/KPICards';
@@ -14,7 +14,7 @@ import {
 
 export default function AdminAnalytics() {
   const { data, loading, error, refetch } = useAnalytics();
-  const { user, canViewAdminAnalytics } = useUserPermissions();
+  const { canViewAdminAnalytics } = useUserPermissions();
   const navigate = useNavigate();
 
   // RBAC Protection - Redirect non-platinum users

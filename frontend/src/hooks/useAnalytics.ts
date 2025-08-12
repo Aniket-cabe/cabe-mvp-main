@@ -6,10 +6,10 @@ const MOCK_ANALYTICS_DATA: AnalyticsMetrics = {
   user: {
     heatmapData: generateHeatmapData(),
     skillRadarData: [
-      { skill: 'Web Development', points: 85, fullMark: 100 },
-      { skill: 'Design', points: 72, fullMark: 100 },
-      { skill: 'AI/ML', points: 45, fullMark: 100 },
-      { skill: 'Data Science', points: 58, fullMark: 100 },
+      { skill: 'Full-Stack Software Development', points: 85, fullMark: 100 },
+      { skill: 'Cloud Computing & DevOps', points: 72, fullMark: 100 },
+      { skill: 'AI / Machine Learning', points: 45, fullMark: 100 },
+      { skill: 'Data Science & Analytics', points: 58, fullMark: 100 },
       { skill: 'Mobile Dev', points: 38, fullMark: 100 },
       { skill: 'DevOps', points: 62, fullMark: 100 },
     ],
@@ -26,7 +26,7 @@ const MOCK_ANALYTICS_DATA: AnalyticsMetrics = {
       totalPoints: 2847,
       tasksCompleted: 156,
       streak: 12,
-      topSkill: 'Web Development',
+      topSkill: 'Full-Stack Software Development',
     },
   },
   admin: {
@@ -85,9 +85,9 @@ const MOCK_ANALYTICS_DATA: AnalyticsMetrics = {
       },
     ],
     categoryDistribution: [
-      { category: 'Web Development', value: 35, color: '#3b82f6' },
-      { category: 'Design', value: 25, color: '#10b981' },
-      { category: 'Data Science', value: 20, color: '#f59e0b' },
+      { category: 'Full-Stack Software Development', value: 35, color: '#3b82f6' },
+      { category: 'Cloud Computing & DevOps', value: 25, color: '#10b981' },
+      { category: 'Data Science & Analytics', value: 20, color: '#f59e0b' },
       { category: 'Mobile Dev', value: 12, color: '#ef4444' },
       { category: 'DevOps', value: 8, color: '#8b5cf6' },
     ],
@@ -130,10 +130,10 @@ function generateExportData() {
   const data = [];
   const taskTypes = ['Arena Task', 'Learning Module', 'Gig Project'];
   const skills = [
-    'Web Development',
-    'Design',
-    'AI/ML',
-    'Data Science',
+    'Full-Stack Software Development',
+    'Cloud Computing & DevOps',
+    'AI / Machine Learning',
+    'Data Science & Analytics',
     'Mobile Dev',
     'DevOps',
   ];

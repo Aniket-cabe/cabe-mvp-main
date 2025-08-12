@@ -12,6 +12,7 @@ declare global {
         rankLevel: string;
         username: string;
         permissions: string[];
+        points: number;
       };
       startTime?: number;
     }
@@ -31,6 +32,7 @@ export interface AuthenticatedRequest extends Express.Request {
     rankLevel: string;
     username: string;
     permissions: string[];
+    points: number;
   };
 }
 
@@ -91,13 +93,10 @@ export const TaskCreateSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().min(1).max(2000),
   skillArea: z.enum([
-    'frontend',
-    'backend',
-    'fullstack',
-    'mobile',
-    'ai',
-    'devops',
-    'design',
+      'ai-ml',
+  'cloud-devops',
+  'data-analytics',
+  'fullstack-dev',
   ]),
   difficulty: z.enum(['easy', 'medium', 'hard', 'expert']),
   points: z.number().min(1).max(1000),

@@ -64,14 +64,14 @@ export function OppCard({
   // Get category icon
   const getCategoryIcon = () => {
     switch (category) {
-      case 'design':
-        return '🎨';
-      case 'web':
+      case 'fullstack-dev':
         return '💻';
-      case 'ai':
+      case 'cloud-devops':
+        return '☁️';
+      case 'data-analytics':
+        return '📊';
+      case 'ai-ml':
         return '🤖';
-      case 'writing':
-        return '✍️';
       default:
         return '📋';
     }

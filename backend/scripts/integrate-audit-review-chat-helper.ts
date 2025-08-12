@@ -407,7 +407,7 @@ async function demonstrateIntegration() {
       deviationType: 'minor',
       reviewer: 'admin-enhanced',
       taskTitle: 'Create a blog system',
-      skillArea: 'backend',
+      skillArea: 'cloud-devops',
       userScore: 92,
       aiScore: 82,
       taskDifficulty: 'hard',

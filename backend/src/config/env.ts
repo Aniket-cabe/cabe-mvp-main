@@ -30,6 +30,9 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default('7d'),
 
+  // Redis
+  REDIS_URL: z.string().url().default('redis://localhost:6379'),
+
   // WebSocket
   WEBSOCKET_PORT: z.string().transform(Number).default('8080'),
   BASE_URL: z.string().url().default('http://localhost:3001'),

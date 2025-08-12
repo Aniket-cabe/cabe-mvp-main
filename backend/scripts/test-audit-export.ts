@@ -99,7 +99,7 @@ async function testAuditExport(): Promise<void> {
 
         if (params.has('skill_area')) {
           const skillArea = params.get('skill_area')!;
-          const validSkills = ['frontend', 'backend', 'content', 'data'];
+          const validSkills = ['ai-ml', 'cloud-devops', 'data-analytics', 'fullstack-dev'];
           console.log(
             `  - skill_area: ${skillArea} (${validSkills.includes(skillArea) ? '✅ Valid' : '❌ Invalid'})`
           );
@@ -141,7 +141,7 @@ async function testAuditExport(): Promise<void> {
       {
         task_id: 'task-001',
         user_id: 'user-001',
-        skill_area: 'frontend',
+        skill_area: 'ai-ml',
         original_score: 85,
         new_score: 82,
         deviation: 3,
@@ -153,7 +153,7 @@ async function testAuditExport(): Promise<void> {
       {
         task_id: 'task-002',
         user_id: 'user-002',
-        skill_area: 'backend',
+        skill_area: 'cloud-devops',
         original_score: 80,
         new_score: 65,
         deviation: 15,
@@ -165,7 +165,7 @@ async function testAuditExport(): Promise<void> {
       {
         task_id: 'task-003',
         user_id: 'user-003',
-        skill_area: 'content',
+        skill_area: 'data-analytics',
         original_score: 90,
         new_score: 85,
         deviation: 5,

@@ -95,6 +95,15 @@ export default function BadgeStrip({ badges, skill }: BadgeStripProps) {
             onMouseEnter={() => setHoveredBadge(badge.id)}
             onMouseLeave={() => setHoveredBadge(null)}
             data-testid={`badge-${badge.id}`}
+            role="button"
+            tabIndex={0}
+            aria-label={`Badge: ${badge.name} - ${badge.rarity} rarity`}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                // Handle badge click if needed
+              }
+            }}
           >
             {/* Rarity Indicator */}
             <div className="absolute top-2 right-2">

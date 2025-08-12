@@ -1,16 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Brain,
   Users,
   TrendingUp,
   Clock,
   BarChart3,
-  PieChart,
   Download,
   RefreshCw,
   AlertCircle,
-  Calendar,
-  Filter,
   Search,
 } from 'lucide-react';
 

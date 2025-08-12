@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   XMarkIcon,
   CheckCircleIcon,
-  ExclamationTriangleIcon,
+  // ExclamationTriangleIcon,
   InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 import { useWebSocket, EventType } from '../hooks/useWebSocket';
@@ -242,7 +242,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
         ))}
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes shrink {
           from {
             width: 100%;

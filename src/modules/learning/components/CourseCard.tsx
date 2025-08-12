@@ -17,10 +17,10 @@ const DIFFICULTY_COLORS = {
 };
 
 const CATEGORY_COLORS = {
-  design: 'bg-purple-100 text-purple-800',
-  web: 'bg-blue-100 text-blue-800',
-  ai: 'bg-green-100 text-green-800',
-  writing: 'bg-orange-100 text-orange-800',
+  'fullstack-dev': 'bg-purple-100 text-purple-800',
+  'cloud-devops': 'bg-blue-100 text-blue-800',
+  'data-analytics': 'bg-green-100 text-green-800',
+  'ai-ml': 'bg-orange-100 text-orange-800',
 };
 
 const RANK_ORDER = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond'];
@@ -61,10 +61,10 @@ export default function CourseCard({
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <div className="text-4xl opacity-20">
-                {course.category === 'design' && '🎨'}
-                {course.category === 'web' && '💻'}
-                {course.category === 'ai' && '🤖'}
-                {course.category === 'writing' && '✍️'}
+                {course.category === 'fullstack-dev' && '💻'}
+                {course.category === 'cloud-devops' && '☁️'}
+                {course.category === 'data-analytics' && '📊'}
+                {course.category === 'ai-ml' && '🤖'}
               </div>
             </div>
           )}

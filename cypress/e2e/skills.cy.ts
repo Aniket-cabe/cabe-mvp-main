@@ -7,13 +7,13 @@ describe('Skills Dashboard', () => {
         success: true,
         data: {
           skill: {
-            slug: 'design',
-            name: 'Design',
-            icon: '🎨',
-            tagline: 'Where creativity meets functionality',
-            color: 'pink-500',
+            slug: 'ai-ml',
+            name: 'AI / Machine Learning',
+            icon: '🤖',
+            tagline: 'Teaching machines to think',
+            color: 'violet-500',
             description:
-              'UI/UX design, graphic design, and visual communication',
+              'Machine learning, artificial intelligence, and neural networks',
           },
           stats: {
             totalTasks: 5,
@@ -28,10 +28,10 @@ describe('Skills Dashboard', () => {
           tasks: [
             {
               id: 'task-1',
-              title: 'Design a Modern Landing Page',
+              title: 'Build Machine Learning Model',
               description:
-                'Create a responsive landing page design for a SaaS product',
-              skill_area: 'design',
+                'Create a predictive model using Python and scikit-learn',
+              skill_area: 'ai-ml',
               points_awarded: 150,
               score: 85,
               status: 'scored',
@@ -42,10 +42,10 @@ describe('Skills Dashboard', () => {
             },
             {
               id: 'task-2',
-              title: 'Create a Mobile App Icon',
+              title: 'Implement Neural Network',
               description:
-                'Design a modern app icon for a fitness tracking application',
-              skill_area: 'design',
+                'Build and train a deep learning model for image classification',
+              skill_area: 'ai-ml',
               points_awarded: 200,
               score: 92,
               status: 'scored',
@@ -61,17 +61,17 @@ describe('Skills Dashboard', () => {
               name: 'First Steps',
               description: 'Complete your first task in this skill area',
               icon: '🌟',
-              skillArea: 'design',
+              skillArea: 'ai-ml',
               unlockedAt: '2024-01-15T10:30:00Z',
               rarity: 'common',
               requirements: { tasksCompleted: 1, averageScore: 0, totalXP: 0 },
             },
             {
               id: 'badge-2',
-              name: 'Design Master',
-              description: 'Achieve high scores in multiple design tasks',
-              icon: '🎨',
-              skillArea: 'design',
+              name: 'AI Master',
+              description: 'Achieve high scores in multiple AI/ML tasks',
+              icon: '🤖',
+              skillArea: 'ai-ml',
               unlockedAt: '2024-01-14T16:45:00Z',
               rarity: 'rare',
               requirements: {
@@ -245,13 +245,13 @@ describe('Skills Dashboard', () => {
         success: true,
         data: {
           skill: {
-            slug: 'design',
-            name: 'Design',
-            icon: '🎨',
-            tagline: 'Where creativity meets functionality',
-            color: 'pink-500',
+            slug: 'ai-ml',
+            name: 'AI / Machine Learning',
+            icon: '🤖',
+            tagline: 'Teaching machines to think',
+            color: 'violet-500',
             description:
-              'UI/UX design, graphic design, and visual communication',
+              'Machine learning, artificial intelligence, and neural networks',
           },
           stats: {
             totalTasks: 0,
@@ -376,9 +376,9 @@ describe('Skills Dashboard', () => {
   it('should display different skill colors correctly', () => {
     // Test with different skill colors
     const skills = [
-      { slug: 'web', color: 'emerald-500' },
-      { slug: 'ai', color: 'violet-500' },
-      { slug: 'writing', color: 'amber-500' },
+      { slug: 'ai-ml', color: 'violet-500' },
+      { slug: 'cloud-devops', color: 'blue-500' },
+      { slug: 'data-analytics', color: 'emerald-500' },
     ];
 
     skills.forEach((skill) => {
@@ -432,13 +432,13 @@ describe('Skills Dashboard', () => {
     cy.wait('@getSkillData');
 
     // Check if navigation buttons exist
-    cy.get('[data-testid="skill-nav-design"]').should('be.visible');
-    cy.get('[data-testid="skill-nav-web"]').should('be.visible');
-    cy.get('[data-testid="skill-nav-ai"]').should('be.visible');
-    cy.get('[data-testid="skill-nav-writing"]').should('be.visible');
+    cy.get('[data-testid="skill-nav-ai-ml"]').should('be.visible');
+    cy.get('[data-testid="skill-nav-cloud-devops"]').should('be.visible');
+    cy.get('[data-testid="skill-nav-data-analytics"]').should('be.visible');
+    cy.get('[data-testid="skill-nav-fullstack-dev"]').should('be.visible');
 
     // Click on different skill
-    cy.get('[data-testid="skill-nav-web"]').click();
-    cy.get('[data-testid="skill-name"]').should('contain', 'Web Development');
+    cy.get('[data-testid="skill-nav-cloud-devops"]').click();
+    cy.get('[data-testid="skill-name"]').should('contain', 'Cloud Computing & DevOps');
   });
 });

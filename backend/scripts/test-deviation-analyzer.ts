@@ -18,7 +18,7 @@ const testScenarios: DeviationAnalysisInput[] = [
   {
     taskTitle: 'Build a responsive navigation bar',
     taskDifficulty: 'easy',
-    skillArea: 'frontend',
+    skillArea: 'fullstack-dev',
     userSubmittedScore: 85,
     aiAuditScore: 78,
     userCode: `
@@ -65,7 +65,7 @@ const testScenarios: DeviationAnalysisInput[] = [
   {
     taskTitle: 'Implement user authentication with JWT',
     taskDifficulty: 'medium',
-    skillArea: 'backend',
+    skillArea: 'cloud-devops',
     userSubmittedScore: 92,
     aiAuditScore: 65,
     userCode: `
@@ -111,7 +111,7 @@ app.post('/auth/login', async (req, res) => {
   {
     taskTitle: 'Create a machine learning model for sentiment analysis',
     taskDifficulty: 'expert',
-    skillArea: 'ai',
+    skillArea: 'ai-ml',
     userSubmittedScore: 95,
     aiAuditScore: 35,
     userCode: `
@@ -153,7 +153,7 @@ print(f"Accuracy: {accuracy:.2f}")`,
   {
     taskTitle: 'Write a technical blog post about API design',
     taskDifficulty: 'medium',
-    skillArea: 'content',
+    skillArea: 'data-analytics',
     userSubmittedScore: 88,
     aiAuditScore: 72,
     userProof: `# Best Practices for RESTful API Design
@@ -194,7 +194,7 @@ Following these practices ensures your APIs are maintainable, scalable, and deve
   {
     taskTitle: 'Analyze customer churn data and create visualizations',
     taskDifficulty: 'hard',
-    skillArea: 'data',
+    skillArea: 'data-analytics',
     userSubmittedScore: 76,
     aiAuditScore: 89,
     userCode: `
@@ -254,7 +254,7 @@ print("Average tenure for retained customers:", df[df['churn']==0]['tenure'].mea
   {
     taskTitle: 'Create a simple calculator component',
     taskDifficulty: 'easy',
-    skillArea: 'frontend',
+    skillArea: 'fullstack-dev',
     userSubmittedScore: 75,
     aiAuditScore: 72,
     userCode: `
@@ -319,7 +319,7 @@ function Calculator() {
   {
     taskTitle: 'Write a simple function to reverse a string',
     taskDifficulty: 'easy',
-    skillArea: 'backend',
+    skillArea: 'cloud-devops',
     userSubmittedScore: 95,
     aiAuditScore: 45,
     userCode: `
@@ -344,7 +344,7 @@ console.log(reverseString('world')); // 'dlrow'`,
   {
     taskTitle: 'Build a full-stack e-commerce application',
     taskDifficulty: 'expert',
-    skillArea: 'backend',
+    skillArea: 'cloud-devops',
     userSubmittedScore: 45,
     aiAuditScore: 82,
     userCode: `

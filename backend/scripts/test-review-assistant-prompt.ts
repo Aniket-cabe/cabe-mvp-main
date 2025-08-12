@@ -15,7 +15,7 @@ const testInput: ReviewPromptInput = {
   auditMetadata: {
     runId: 'run-123',
     reviewer: 'admin-1',
-    skillArea: 'Backend',
+    skillArea: 'cloud-devops',
     taskTitle: 'Build a secure API',
     taskDifficulty: 'Hard',
     auditStartedAt: '2024-01-01T10:00:00Z',
