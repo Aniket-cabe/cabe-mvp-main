@@ -420,8 +420,17 @@ process.on('SIGINT', () => {
 
 async function checkDatabaseHealth(): Promise<boolean> {
   try {
-    // TODO: Implement actual database health check
-    // For now, return true as placeholder
+    // Test database connection by executing a simple query
+    const { data, error } = await supabaseAdmin
+      .from('users')
+      .select('count')
+      .limit(1);
+    
+    if (error) {
+      logger.error('Database health check failed', { error });
+      return false;
+    }
+    
     return true;
   } catch (error) {
     logger.error('Database health check failed', {
@@ -433,8 +442,21 @@ async function checkDatabaseHealth(): Promise<boolean> {
 
 async function checkAIServiceHealth(): Promise<boolean> {
   try {
-    // TODO: Implement actual AI service health check
-    // For now, return true as placeholder
+    // Check if OpenAI API key is configured
+    if (!env.OPENAI_API_KEY || env.OPENAI_API_KEY === 'your-openai-api-key') {
+      logger.warn('AI service health check: OpenAI API key not configured');
+      return false;
+    }
+    
+    // Test AI service by making a simple request
+    // For now, just check if the API key is valid format
+    const isValidKey = env.OPENAI_API_KEY.startsWith('sk-') && env.OPENAI_API_KEY.length > 20;
+    
+    if (!isValidKey) {
+      logger.warn('AI service health check: Invalid OpenAI API key format');
+      return false;
+    }
+    
     return true;
   } catch (error) {
     logger.error('AI service health check failed', {
@@ -446,8 +468,23 @@ async function checkAIServiceHealth(): Promise<boolean> {
 
 async function checkExternalServices(): Promise<boolean> {
   try {
-    // TODO: Implement actual external service health checks
-    // For now, return true as placeholder
+    // Check Supabase configuration
+    if (!env.SUPABASE_URL || env.SUPABASE_URL === 'https://your-project.supabase.co') {
+      logger.warn('External services health check: Supabase URL not configured');
+      return false;
+    }
+    
+    if (!env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY === 'your-service-role-key') {
+      logger.warn('External services health check: Supabase service role key not configured');
+      return false;
+    }
+    
+    // Check JWT secret configuration
+    if (!env.JWT_SECRET || env.JWT_SECRET === 'your-super-secret-jwt-key-minimum-32-characters') {
+      logger.warn('External services health check: JWT secret not configured');
+      return false;
+    }
+    
     return true;
   } catch (error) {
     logger.error('External services health check failed', {

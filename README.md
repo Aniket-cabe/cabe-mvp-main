@@ -1,6 +1,6 @@
-# Cabe Arena Monorepo
+# CaBE Arena MVP
 
-A modern full-stack monorepo built with React, Express, TypeScript, and Yarn workspaces.
+A modern full-stack platform for skill validation and gamified learning built with React, Express, TypeScript, and Yarn workspaces.
 
 ## 🚀 Features
 
@@ -41,6 +41,11 @@ cd cabe-arena
 
 # Install dependencies
 yarn install
+
+# Set up environment variables
+cp backend/env.example backend/.env
+cp frontend/env.example frontend/.env
+# Edit the .env files with your actual API keys and secrets
 ```
 
 ## 🚀 Development

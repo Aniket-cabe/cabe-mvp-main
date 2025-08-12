@@ -376,7 +376,26 @@ router.post('/submit', authenticateToken, requireEmailVerification, async (req, 
     else if (proof_type === 'link') proofStrength = 25;
     else if (proof_type === 'image' || proof_type === 'file') proofStrength = 50;
 
-    // Create submission with integrity flags
+    // Calculate points using Service Points Formula v5
+    const taskForPoints: Task = {
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      skill_area: task.skill_category,
+      duration: task.estimated_duration / 60, // Convert to hours
+      skill: task.difficulty_level === 'easy' ? 0.3 : task.difficulty_level === 'medium' ? 0.6 : 0.9,
+      complexity: task.difficulty_level === 'easy' ? 0.2 : task.difficulty_level === 'medium' ? 0.5 : 0.8,
+      visibility: 0.5, // Default visibility
+      prestige: 0.4, // Default prestige
+      autonomy: 0.6, // Default autonomy
+      created_at: task.created_at,
+      is_active: task.is_active,
+    };
+
+    const pointsResult = calculateTaskPoints(taskForPoints, proofStrength);
+    const pointsAwarded = pointsResult.pointsAwarded;
+
+    // Create submission with integrity flags and points
     const { data: submission, error: submissionError } = await supabaseAdmin
       .from('submissions')
       .insert({
@@ -386,12 +405,14 @@ router.post('/submit', authenticateToken, requireEmailVerification, async (req, 
         proof_url,
         proof_text,
         proof_strength: proofStrength,
-        status: integrityCheck.reviewRequired ? 'pending' : 'scored',
+        points_awarded: pointsAwarded,
+        status: integrityCheck.reviewRequired ? 'pending' : 'approved',
         flagged_for_review: integrityCheck.reviewRequired,
         points_breakdown: {
           fraud_detection: integrityCheck.fraudDetection,
           integrity_warnings: integrityCheck.integrityWarnings,
           review_required: integrityCheck.reviewRequired,
+          points_calculation: pointsResult.breakdown,
         },
       })
       .select('*')
@@ -411,6 +432,48 @@ router.post('/submit', authenticateToken, requireEmailVerification, async (req, 
       .from('tasks')
       .update({ completion_count: task.completion_count + 1 })
       .eq('id', task_id);
+
+    // If submission is automatically approved, update user points
+    if (!integrityCheck.reviewRequired) {
+      // Update user total points
+      const { data: user, error: userError } = await supabaseAdmin
+        .from('users')
+        .select('total_points')
+        .eq('id', req.user!.id)
+        .single();
+
+      if (!userError && user) {
+        const newTotalPoints = (user.total_points || 0) + pointsAwarded;
+        
+        await supabaseAdmin
+          .from('users')
+          .update({ total_points: newTotalPoints })
+          .eq('id', req.user!.id);
+
+        // Log points history
+        await supabaseAdmin
+          .from('points_history')
+          .insert({
+            user_id: req.user!.id,
+            points_change: pointsAwarded,
+            reason: 'task_completion',
+            metadata: {
+              task_id: task_id,
+              task_title: task.title,
+              skill_category: task.skill_category,
+              proof_type: proof_type,
+              proof_strength: proofStrength,
+            },
+          });
+
+        logger.info('✅ Points awarded to user', {
+          userId: req.user!.id,
+          taskId: task_id,
+          pointsAwarded,
+          newTotalPoints,
+        });
+      }
+    }
 
     logger.info('✅ Task submitted successfully', {
       submissionId: submission.id,

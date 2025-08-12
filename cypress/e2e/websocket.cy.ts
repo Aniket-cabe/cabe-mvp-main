@@ -25,7 +25,7 @@ describe('WebSocket Real-time Features', () => {
     it('should connect to WebSocket server on page load', () => {
       cy.get('@WebSocket').should(
         'have.been.calledWith',
-        'ws://localhost:8080/ws?token=cypress-test-token'
+        `ws://localhost:8080/ws?token=${Cypress.env('TEST_TOKEN')}`
       );
     });
 
