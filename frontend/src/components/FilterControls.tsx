@@ -45,8 +45,8 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
     const loadFilterOptions = async () => {
       try {
         const [skillsResponse, typesResponse] = await Promise.all([
-          fetch('/api/metrics/realtime/skills'),
-          fetch('/api/metrics/realtime/types'),
+                fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/metrics/realtime/skills`),
+      fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/metrics/realtime/types`),
         ]);
 
         if (skillsResponse.ok) {

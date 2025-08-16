@@ -2,13 +2,29 @@ import Airtable from 'airtable';
 import { env } from '../config/env';
 import logger from '../utils/logger';
 
-// Initialize Airtable base
-const airtable = new Airtable({
-  apiKey: env.AIRTABLE_API_KEY,
-}).base(env.AIRTABLE_BASE_ID);
+// Check if Airtable is configured
+const isAirtableConfigured = () => {
+  return !!(env.AIRTABLE_API_KEY && env.AIRTABLE_BASE_ID && env.AIRTABLE_TABLE_NAME);
+};
 
-// Get the table reference
-const table = airtable(env.AIRTABLE_TABLE_NAME);
+// Initialize Airtable base (only if configured)
+let airtable: any = null;
+let table: any = null;
+
+if (isAirtableConfigured()) {
+  try {
+    airtable = new Airtable({
+      apiKey: env.AIRTABLE_API_KEY,
+    }).base(env.AIRTABLE_BASE_ID);
+    
+    table = airtable(env.AIRTABLE_TABLE_NAME);
+    logger.info('✅ Airtable configured and initialized');
+  } catch (error) {
+    logger.warn('⚠️ Failed to initialize Airtable:', error);
+  }
+} else {
+  logger.warn('⚠️ Airtable not configured - API key, base ID, or table name missing');
+}
 
 // Type for Airtable records
 export interface AirtableRecord {
@@ -31,6 +47,13 @@ export interface AirtableResult<T> {
 export async function getAllAirtableRecords(): Promise<
   AirtableResult<AirtableRecord[]>
 > {
+  if (!isAirtableConfigured() || !table) {
+    return {
+      success: false,
+      error: 'Airtable not configured',
+    };
+  }
+
   try {
     logger.info(
       `📊 Fetching all records from Airtable table: ${env.AIRTABLE_TABLE_NAME}`
@@ -78,6 +101,13 @@ export async function getAllAirtableRecords(): Promise<
 export async function getAirtableRecord(
   recordId: string
 ): Promise<AirtableResult<AirtableRecord>> {
+  if (!isAirtableConfigured() || !table) {
+    return {
+      success: false,
+      error: 'Airtable not configured',
+    };
+  }
+
   try {
     logger.info(`📊 Fetching Airtable record: ${recordId}`);
 
@@ -119,6 +149,13 @@ export async function getAirtableRecord(
 export async function createAirtableRecord(
   fields: Record<string, any>
 ): Promise<AirtableResult<AirtableRecord>> {
+  if (!isAirtableConfigured() || !table) {
+    return {
+      success: false,
+      error: 'Airtable not configured',
+    };
+  }
+
   try {
     logger.info(
       `📝 Creating new Airtable record with fields:`,
@@ -165,6 +202,13 @@ export async function updateAirtableRecord(
   recordId: string,
   fields: Record<string, any>
 ): Promise<AirtableResult<AirtableRecord>> {
+  if (!isAirtableConfigured() || !table) {
+    return {
+      success: false,
+      error: 'Airtable not configured',
+    };
+  }
+
   try {
     logger.info(`📝 Updating Airtable record: ${recordId}`);
 
@@ -206,6 +250,13 @@ export async function updateAirtableRecord(
 export async function deleteAirtableRecord(
   recordId: string
 ): Promise<AirtableResult<boolean>> {
+  if (!isAirtableConfigured() || !table) {
+    return {
+      success: false,
+      error: 'Airtable not configured',
+    };
+  }
+
   try {
     logger.info(`🗑️ Deleting Airtable record: ${recordId}`);
 
@@ -240,6 +291,13 @@ export async function deleteAirtableRecord(
 export async function testAirtableConnection(): Promise<
   AirtableResult<boolean>
 > {
+  if (!isAirtableConfigured() || !table) {
+    return {
+      success: false,
+      error: 'Airtable not configured',
+    };
+  }
+
   try {
     logger.info('🔍 Testing Airtable connection...');
 

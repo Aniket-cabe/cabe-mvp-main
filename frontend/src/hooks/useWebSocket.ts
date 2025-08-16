@@ -41,7 +41,7 @@ interface WebSocketState {
 }
 
 export function useWebSocket({
-  url = 'ws://localhost:8080/ws',
+  url = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws',
   handlers,
   autoReconnect = true,
   reconnectInterval = 3000,

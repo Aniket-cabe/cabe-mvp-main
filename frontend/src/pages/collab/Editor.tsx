@@ -39,7 +39,7 @@ export const CollaborationEditor: React.FC<EditorProps> = ({
   // const cursorDecorations = useRef<string[]>([]);
 
   const { sendMessage, joinRoom, leaveRoom } = useWebSocket({
-    url: `ws://localhost:8081?token=${localStorage.getItem('authToken')}`,
+    url: `${import.meta.env.VITE_WS_URL || 'ws://localhost:8081'}?token=${localStorage.getItem('authToken')}`,
     handlers: {
       chatMessage: () => {}, // Placeholder handler
     },

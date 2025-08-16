@@ -72,7 +72,7 @@ export const uploadFile = async (
  * Upload a file from URL
  */
 export const uploadFromUrl = async (url: string): Promise<UploadResponse> => {
-  const response = await fetch('/api/uploads', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/uploads`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -148,7 +148,7 @@ export async function getUploadStatus(fileId: string): Promise<{
       throw new Error('Authentication required');
     }
 
-    const response = await fetch(`/api/uploads/${fileId}/status`, {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/uploads/${fileId}/status`, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -181,7 +181,7 @@ export async function deleteUpload(fileId: string): Promise<void> {
       throw new Error('Authentication required');
     }
 
-    const response = await fetch(`/api/uploads/${fileId}`, {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/uploads/${fileId}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -227,7 +227,7 @@ export async function getUserUploads(
     }
 
     const response = await fetch(
-      `/api/uploads?limit=${limit}&offset=${offset}`,
+      `${import.meta.env.VITE_API_BASE_URL || ''}/api/uploads?limit=${limit}&offset=${offset}`,
       {
         method: 'GET',
         headers: {

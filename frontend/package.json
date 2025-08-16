@@ -71,5 +71,9 @@
     "vite-bundle-analyzer": "^0.7.0",
     "vite-plugin-compression2": "^0.10.0",
     "vite-plugin-pwa": "^0.17.4"
-  }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "npm@>=10"
 }

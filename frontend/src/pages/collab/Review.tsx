@@ -37,7 +37,7 @@ export const CollaborationReview: React.FC<ReviewProps> = ({
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
   const { sendMessage } = useWebSocket({
-    url: `ws://localhost:8081?token=${localStorage.getItem('authToken')}`,
+    url: `${import.meta.env.VITE_WS_URL || 'ws://localhost:8081'}?token=${localStorage.getItem('authToken')}`,
     handlers: {
       chatMessage: () => {}, // Placeholder handler
     },

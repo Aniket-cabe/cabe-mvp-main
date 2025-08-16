@@ -254,20 +254,34 @@ export const corsOptions = {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
 
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://localhost:4173',
-      'https://cabe-arena.com',
-      'https://www.cabe-arena.com',
-      'https://staging.cabe-arena.com',
-    ];
-
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
+    // Get CORS origin from environment or use default allowed origins
+    const corsOrigin = process.env.CORS_ORIGIN;
+    
+    if (corsOrigin && corsOrigin !== '*') {
+      // Use specific CORS origin from environment
+      if (origin === corsOrigin) {
+        callback(null, true);
+      } else {
+        logger.warn('CORS blocked request', { origin, allowed: corsOrigin });
+        callback(new Error('Not allowed by CORS'));
+      }
     } else {
-      logger.warn('CORS blocked request', { origin, ip: origin });
-      callback(new Error('Not allowed by CORS'));
+      // Fallback to default allowed origins
+      const allowedOrigins = [
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://localhost:4173',
+        'https://cabe-arena.com',
+        'https://www.cabe-arena.com',
+        'https://staging.cabe-arena.com',
+      ];
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        logger.warn('CORS blocked request', { origin, ip: origin });
+        callback(new Error('Not allowed by CORS'));
+      }
     }
   },
   credentials: true,

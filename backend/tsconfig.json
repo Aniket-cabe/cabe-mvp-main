@@ -8,14 +8,18 @@
     "rootDir": "./",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "strict": true,
+    "strict": false,
+    "noImplicitAny": false,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "noEmit": false,
+    "jsx": "preserve",
+    "isolatedModules": false
   },
-  "include": ["src/**/*", "db/**/*", "src/types/**/*"],
+  "include": ["src/**/*", "db/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }

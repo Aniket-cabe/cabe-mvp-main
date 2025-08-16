@@ -29,7 +29,7 @@ export const CollaborationChat: React.FC<ChatProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { sendMessage, isConnected } = useWebSocket({
-    url: `ws://localhost:8081?token=${localStorage.getItem('authToken')}`,
+    url: `${import.meta.env.VITE_WS_URL || 'ws://localhost:8081'}?token=${localStorage.getItem('authToken')}`,
     handlers: {
       chatMessage: (data) => {
         setMessages((prev) => [...prev, data.message]);

@@ -1,6 +1,7 @@
 import { z } from 'zod';
+import { User } from './user';
 
-// Use the global User interface defined in global.d.ts
+// Reference the global User interface
 declare global {
   namespace Express {
     interface Request {

@@ -21,7 +21,7 @@ export const CollaborationDebug: React.FC<DebugProps> = ({
   const [newLogMessage, setNewLogMessage] = useState('');
 
   const { sendMessage } = useWebSocket({
-    url: `ws://localhost:8081`,
+    url: import.meta.env.VITE_WS_URL || 'ws://localhost:8081',
     handlers: {
       chatMessage: () => {}, // Placeholder handler
     },

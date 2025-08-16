@@ -80,7 +80,7 @@ export const useAIFeatures = (baseUrl: string = '/api/ai') => {
       }));
 
       try {
-        const response = await fetch(`${baseUrl}/plagiarism`, {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/plagiarism`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code, language }),
@@ -131,7 +131,7 @@ export const useAIFeatures = (baseUrl: string = '/api/ai') => {
       }));
 
       try {
-        const response = await fetch(`${baseUrl}/learning-paths`, {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/learning-paths`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code, language }),
@@ -174,7 +174,7 @@ export const useAIFeatures = (baseUrl: string = '/api/ai') => {
       }));
 
       try {
-        const response = await fetch(`${baseUrl}/suggest`, {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/suggest`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code, language }),

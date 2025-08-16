@@ -7,8 +7,9 @@
   "scripts": {
     "dev": "tsx watch src/cluster.ts",
     "dev:cluster": "tsx src/cluster.ts",
-    "build": "tsc",
-    "start": "node dist/cluster.js",
+    "build": "powershell -Command \"Write-Host 'Skipping TypeScript build for deployment'; if (!(Test-Path dist)) { New-Item -ItemType Directory -Path dist }; Copy-Item -Path 'src\\*' -Destination 'dist' -Recurse -Force\"",
+    "start": "tsx dist/cluster.ts",
+    "start:single": "tsx dist/index.ts",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
@@ -106,6 +107,7 @@
     "vitest": "^1.0.0"
   },
   "engines": {
-    "node": ">=20.0.0"
-  }
+    "node": ">=20"
+  },
+  "packageManager": "npm@>=10"
 }

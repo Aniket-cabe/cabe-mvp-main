@@ -59,7 +59,7 @@ export const RealTimeAnalytics: React.FC = () => {
         ...(currentFilters.type && { type: currentFilters.type }),
       });
 
-      const response = await fetch(`/api/metrics/realtime?${params}`);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/metrics/realtime?${params}`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

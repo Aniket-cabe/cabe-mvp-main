@@ -27,8 +27,22 @@ class SessionService {
   private isConnected = false;
 
   constructor() {
+    // Support both Redis URL and Upstash REST
+    let redisUrl = env.REDIS_URL;
+    
+    if (!redisUrl && env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN) {
+      // Use Upstash REST URL format
+      redisUrl = env.UPSTASH_REDIS_REST_URL.replace('https://', 'rediss://');
+    }
+    
+    if (!redisUrl) {
+      // Fallback to local Redis
+      redisUrl = 'redis://localhost:6379';
+      logger.warn('⚠️ No Redis URL provided, using local Redis fallback');
+    }
+
     this.redis = createClient({
-      url: env.REDIS_URL || 'redis://localhost:6379',
+      url: redisUrl,
       socket: {
         reconnectStrategy: (retries) => {
           if (retries > 10) {

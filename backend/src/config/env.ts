@@ -32,7 +32,9 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default('7d'),
 
   // Redis
-  REDIS_URL: z.string().url().default('redis://localhost:6379'),
+  REDIS_URL: z.string().url().optional(),
+  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 
   // WebSocket
   WEBSOCKET_PORT: z.string().transform(Number).default('8080'),
@@ -48,6 +50,9 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
+
+  // CORS
+  CORS_ORIGIN: z.string().optional(),
 
   // Slack
   SLACK_WEBHOOK_URL: z.string().url().optional(),
