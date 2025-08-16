@@ -5526,11 +5526,11 @@ function calculateWeeklyFeedbackTrend(feedback: any[]): {
       count: data.ratings.length,
       averageRating:
         Math.round(
-          (data.ratings.reduce((sum, rating) => sum + rating, 0) /
-            data.ratings.length) *
+          ((data as any).ratings.reduce((sum: number, rating: any) => sum + rating, 0) /
+            (data as any).ratings.length) *
             100
         ) / 100,
-      tasks: Array.from(data.tasks),
+              tasks: Array.from((data as any).tasks),
     }))
     .sort((a, b) => a.week.localeCompare(b.week))
     .slice(-4); // Last 4 weeks
@@ -5604,11 +5604,11 @@ function generateFeedbackInsights(context: any): string[] {
   if (weeklyTrend.weeks.length > 1) {
     const recentWeeks = weeklyTrend.weeks.slice(-2);
     const recentAvg =
-      recentWeeks.reduce((sum, week) => sum + week.averageRating, 0) /
+      recentWeeks.reduce((sum: number, week: any) => sum + week.averageRating, 0) /
       recentWeeks.length;
     const olderWeeks = weeklyTrend.weeks.slice(0, -2);
     const olderAvg =
-      olderWeeks.reduce((sum, week) => sum + week.averageRating, 0) /
+      olderWeeks.reduce((sum: number, week: any) => sum + week.averageRating, 0) /
       olderWeeks.length;
 
     if (recentAvg > olderAvg + 0.5) {
@@ -5624,7 +5624,7 @@ function generateFeedbackInsights(context: any): string[] {
 
   // Engagement insights
   const tasksWithMultipleRatings = topRatedTasks.filter(
-    (task) => task.totalRatings > 1
+    (task: any) => task.totalRatings > 1
   ).length;
   if (tasksWithMultipleRatings < topRatedTasks.length * 0.5) {
     insights.push(
@@ -5988,16 +5988,16 @@ router.get('/feedback/stats', attachUserRank, async (req, res) => {
     // Process feedback data and aggregate by task
     const taskStats = (feedbackData || []).reduce(
       (acc, item) => {
-        const taskId = item.tasks?.id;
+        const taskId = (item.tasks as any)?.id;
         if (!taskId) return acc;
 
         if (!acc[taskId]) {
           acc[taskId] = {
             task: {
               id: taskId,
-              title: item.tasks?.title || 'Unknown Task',
-              skill_area: item.tasks?.skill_area || 'unknown',
-              created_at: item.tasks?.created_at,
+              title: (item.tasks as any)?.title || 'Unknown Task',
+              skill_area: (item.tasks as any)?.skill_area || 'unknown',
+              created_at: (item.tasks as any)?.created_at,
             },
             ratings: [],
             totalRating: 0,
@@ -6510,7 +6510,7 @@ router.get('/users/leaderboard', attachUserRank, async (req, res) => {
       let filteredSubmissions = submissions;
       if (skill_area) {
         filteredSubmissions = submissions.filter(
-          (submission) => submission.tasks?.skill_area === skill_area
+          (submission) => (submission.tasks as any)?.skill_area === skill_area
         );
       }
 
@@ -6899,7 +6899,7 @@ router.get(
       // Calculate skill area breakdown
       const skillAreaStats = submissions.reduce(
         (acc, submission) => {
-          const skillArea = submission.tasks?.skill_area || 'unknown';
+          const skillArea = (submission.tasks as any)?.skill_area || 'unknown';
           if (!acc[skillArea]) {
             acc[skillArea] = {
               totalSubmissions: 0,
@@ -7004,16 +7004,16 @@ router.get(
         performance: {
           highest_scored_task: highestScoredTask
             ? {
-                task_id: highestScoredTask.tasks?.id,
-                title: highestScoredTask.tasks?.title,
+                task_id: (highestScoredTask.tasks as any)?.id,
+                title: (highestScoredTask.tasks as any)?.title,
                 score: highestScoredTask.score,
                 submitted_at: highestScoredTask.submitted_at,
               }
             : null,
           latest_scored_submission: latestScoredSubmission
             ? {
-                task_id: latestScoredSubmission.tasks?.id,
-                title: latestScoredSubmission.tasks?.title,
+                task_id: (latestScoredSubmission.tasks as any)?.id,
+                title: (latestScoredSubmission.tasks as any)?.title,
                 score: latestScoredSubmission.score,
                 submitted_at: latestScoredSubmission.submitted_at,
               }
@@ -7143,14 +7143,13 @@ router.get(
         original_score: result.expectedScore,
         new_score: result.actualScore,
         deviation: result.deviation,
-        status:
-          result.status === '✅ PASS'
+        status: (result.status === '✅ PASS'
             ? 'pass'
             : result.status === '⚠️ MINOR'
               ? 'minor'
               : result.status === '❌ MAJOR'
                 ? 'major'
-                : 'critical',
+                : 'critical') as 'pass' | 'minor' | 'major' | 'critical',
         critical_issue: result.status === '🚨 CRITICAL',
         timestamp: new Date().toISOString(),
         audit_run_id: 'dashboard-audit',
@@ -7485,7 +7484,7 @@ router.get(
           }
 
           acc[result.skill_area].count++;
-          acc[result.skill_area][result.status]++;
+          (acc as any)[result.skill_area][result.status]++;
           acc[result.skill_area].totalDeviation += result.deviation;
 
           return acc;
@@ -7506,7 +7505,7 @@ router.get(
       // Calculate averages
       Object.keys(skillBreakdown).forEach((skill) => {
         const breakdown = skillBreakdown[skill];
-        breakdown.averageDeviation =
+        (breakdown as any).averageDeviation =
           breakdown.count > 0 ? breakdown.totalDeviation / breakdown.count : 0;
       });
 

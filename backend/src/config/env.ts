@@ -25,6 +25,7 @@ const envSchema = z.object({
   // Airtable
   AIRTABLE_API_KEY: z.string().optional(),
   AIRTABLE_BASE_ID: z.string().optional(),
+  AIRTABLE_TABLE_NAME: z.string().optional(),
 
   // Security
   JWT_SECRET: z.string().min(32),

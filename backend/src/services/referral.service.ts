@@ -59,7 +59,7 @@ class ReferralService {
   async generateInviteCode(userId: string): Promise<string> {
     try {
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      let inviteCode: string;
+      let inviteCode = '';
       let isUnique = false;
 
       // Generate until we get a unique code

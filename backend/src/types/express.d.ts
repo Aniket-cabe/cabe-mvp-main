@@ -1,19 +1,11 @@
 import { z } from 'zod';
 
+// Use the global User interface defined in global.d.ts
 declare global {
   namespace Express {
     interface Request {
       validatedData?: any;
-      user?: {
-        id: string;
-        email: string;
-        name: string;
-        rank: string;
-        rankLevel: string;
-        username: string;
-        permissions: string[];
-        points: number;
-      };
+      user?: User;
       startTime?: number;
     }
   }
@@ -24,16 +16,7 @@ export interface ValidatedRequest<T = any> extends Express.Request {
 }
 
 export interface AuthenticatedRequest extends Express.Request {
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    rank: string;
-    rankLevel: string;
-    username: string;
-    permissions: string[];
-    points: number;
-  };
+  user: User;
 }
 
 // Common validation schemas

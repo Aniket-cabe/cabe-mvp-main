@@ -1,7 +1,7 @@
 import express from 'express';
 import { z } from 'zod';
 import { supabaseAdmin } from '../lib/supabase-admin';
-import { calculateTaskPoints } from '../lib/points';
+import { calculateTaskPoints, Task } from '../lib/points';
 import { getDetailedScore } from '../utils/ai-score-utils';
 import { authenticateToken, requireEmailVerification, requireAdmin } from '../middleware/auth';
 import logger from '../utils/logger';
@@ -392,7 +392,7 @@ router.post('/submit', authenticateToken, requireEmailVerification, async (req, 
       is_active: task.is_active,
     };
 
-    const pointsResult = calculateTaskPoints(taskForPoints, proofStrength);
+    const pointsResult = calculateTaskPoints(proofStrength, taskForPoints);
     const pointsAwarded = pointsResult.pointsAwarded;
 
     // Create submission with integrity flags and points

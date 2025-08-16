@@ -262,6 +262,7 @@ function generateTaskFactors(submission: TestSubmission): Task {
     description: submission.input,
     skill_area: submission.skill,
     ...factors,
+    prestige: factors.professional_impact || 0.5, // Add missing prestige property
     created_at: new Date().toISOString(),
     is_active: true,
   };

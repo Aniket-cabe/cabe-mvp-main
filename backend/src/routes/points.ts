@@ -233,8 +233,25 @@ router.get('/breakdown', authenticateToken, requireEmailVerification, async (req
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    if (dateFilter) {
-      query = query.filter(dateFilter);
+    if (dateFilter && period !== 'all') {
+      const now = new Date();
+      let startDate: Date;
+      
+      switch (period) {
+        case 'week':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'month':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case 'year':
+          startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          startDate = new Date(0);
+      }
+      
+      query = query.gte('created_at', startDate.toISOString());
     }
 
     const { data: history, error: historyError } = await query;
@@ -254,8 +271,25 @@ router.get('/breakdown', authenticateToken, requireEmailVerification, async (req
       .select('id', { count: 'exact' })
       .eq('user_id', req.user!.id);
 
-    if (dateFilter) {
-      countQuery = countQuery.filter(dateFilter);
+    if (dateFilter && period !== 'all') {
+      const now = new Date();
+      let startDate: Date;
+      
+      switch (period) {
+        case 'week':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'month':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case 'year':
+          startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          startDate = new Date(0);
+      }
+      
+      countQuery = countQuery.gte('created_at', startDate.toISOString());
     }
 
     const { count: totalCount } = await countQuery;
@@ -365,16 +399,16 @@ router.get('/calculate', authenticateToken, requireEmailVerification, async (req
     const pointsResult = calculateTaskPoints(
       submission.score || 0,
       {
-        id: submission.tasks.id,
-        title: submission.tasks.title,
-        description: submission.tasks.description,
-        skill_area: submission.tasks.skill_category,
-        duration: submission.tasks.duration_factor,
-        skill: submission.tasks.skill_factor,
-        complexity: submission.tasks.complexity_factor,
-        visibility: submission.tasks.visibility_factor,
-        prestige: submission.tasks.prestige_factor,
-        autonomy: submission.tasks.autonomy_factor,
+        id: (submission.tasks as any).id,
+        title: (submission.tasks as any).title,
+        description: (submission.tasks as any).description,
+        skill_area: (submission.tasks as any).skill_category,
+        duration: (submission.tasks as any).duration_factor,
+        skill: (submission.tasks as any).skill_factor,
+        complexity: (submission.tasks as any).complexity_factor,
+        visibility: (submission.tasks as any).visibility_factor,
+        prestige: (submission.tasks as any).prestige_factor,
+        autonomy: (submission.tasks as any).autonomy_factor,
         created_at: new Date().toISOString(),
         is_active: true,
       },
@@ -398,9 +432,9 @@ router.get('/calculate', authenticateToken, requireEmailVerification, async (req
           status: submission.status,
         },
         task: {
-          id: submission.tasks.id,
-          title: submission.tasks.title,
-          skill_category: submission.tasks.skill_category,
+          id: (submission.tasks as any).id,
+          title: (submission.tasks as any).title,
+          skill_category: (submission.tasks as any).skill_category,
         },
         pointsCalculation: pointsResult,
       },
@@ -569,12 +603,12 @@ router.get('/leaderboard', async (req, res) => {
     const formattedLeaderboard = leaderboard?.map((entry, index) => ({
       position: offset + index + 1,
       user: {
-        id: entry.users.id,
-        name: entry.users.name,
-        username: entry.users.username,
-        primary_skill: entry.users.primary_skill,
-        rank: entry.users.rank_level,
-        avatar_url: entry.users.avatar_url,
+        id: (entry.users as any).id,
+        name: (entry.users as any).name,
+        username: (entry.users as any).username,
+        primary_skill: (entry.users as any).primary_skill,
+        rank: (entry.users as any).rank_level,
+        avatar_url: (entry.users as any).avatar_url,
       },
       points: entry.points,
       last_updated: entry.last_updated,
@@ -765,7 +799,7 @@ router.post('/adjust', authenticateToken, requireAdmin, async (req, res) => {
 
     logger.info('✅ Points adjusted successfully', {
       userId: user_id,
-      pointsChange,
+      points_change,
       previousTotal,
       newTotal,
       rankUp: rankUpdate.rankUp,

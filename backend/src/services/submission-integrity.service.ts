@@ -113,7 +113,7 @@ export async function validateFileUpload(
       ...FILE_VALIDATION_CONFIG.ALLOWED_IMAGE_TYPES,
       ...FILE_VALIDATION_CONFIG.ALLOWED_DOCUMENT_TYPES,
       ...FILE_VALIDATION_CONFIG.ALLOWED_ARCHIVE_TYPES,
-    ];
+    ] as string[];
 
     if (!allowedTypes.includes(file.mimetype)) {
       errors.push(`File type '${file.mimetype}' is not allowed. Allowed types: ${allowedTypes.join(', ')}`);
@@ -668,7 +668,7 @@ export async function performSubmissionIntegrityCheck(
         flags: ['Integrity check unavailable'],
         recommendations: ['Manual review recommended'],
       },
-      integrityWarnings: PSYCHOLOGICAL_DETERRENTS.INTEGRITY_WARNINGS,
+      integrityWarnings: [...PSYCHOLOGICAL_DETERRENTS.INTEGRITY_WARNINGS],
       confirmationRequired: true,
       reviewRequired: true,
     };

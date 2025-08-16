@@ -352,7 +352,7 @@ router.post('/query', authenticateToken, requireEmailVerification, async (req, r
         response: result.response,
         creditsUsed: result.creditsUsed,
         remainingCredits: result.remainingCredits,
-        actionType,
+        action_type,
       },
       timestamp: new Date().toISOString(),
     });
@@ -465,7 +465,7 @@ router.post('/refill', authenticateToken, requireEmailVerification, async (req, 
       data: {
         creditsAdded: creditsToAdd,
         newTotal,
-        refillType,
+        refill_type,
       },
       timestamp: new Date().toISOString(),
     });

@@ -530,7 +530,7 @@ class AchievementService {
       }
 
       // Calculate various stats
-      const uniqueSkillAreas = new Set(submissions.map(s => s.tasks.skill_area)).size;
+      const uniqueSkillAreas = new Set(submissions.map((s: any) => s.tasks.skill_area)).size;
       const perfectScores = submissions.filter(s => s.score === 100).length;
 
       // Calculate consecutive days

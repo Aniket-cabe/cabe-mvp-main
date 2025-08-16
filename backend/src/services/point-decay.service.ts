@@ -341,7 +341,7 @@ export async function getDecayStatistics(): Promise<{
     }
 
     const totalDecay = quarterlyDecay?.reduce((sum, record) => sum + record.decay_amount, 0) || 0;
-    const uniqueUsers = new Set(quarterlyDecay?.map(record => record.user_id) || []).size;
+    const uniqueUsers = new Set(quarterlyDecay?.map((record: any) => record.user_id) || []).size;
     const averageDecay = uniqueUsers > 0 ? totalDecay / uniqueUsers : 0;
 
     // Calculate top decay categories

@@ -1,12 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { supabaseAdmin } from '../lib/supabase-admin';
 import { env } from '../config/env';
 import logger from '../utils/logger';
 import { authenticateToken, requireEmailVerification } from '../middleware/auth';
-import { rateLimitMiddleware } from '../middleware/rate-limit';
+import { authLimiter } from '../middleware/rate-limit';
 
 const router = Router();
 
@@ -97,7 +97,7 @@ function createJWTToken(userId: string, email: string): string {
   return jwt.sign(
     { userId, email },
     env.JWT_SECRET,
-    { expiresIn: env.JWT_EXPIRES_IN }
+    { expiresIn: env.JWT_EXPIRES_IN as any }
   );
 }
 
@@ -146,7 +146,7 @@ async function processReferralBonus(referrerId: string, newUserId: string): Prom
 // ============================================================================
 
 // POST /api/auth/register
-router.post('/register', rateLimitMiddleware, async (req: Request, res: Response) => {
+router.post('/register', authLimiter, async (req: Request, res: Response) => {
   try {
     const validatedData = registerSchema.parse(req.body);
     
@@ -260,7 +260,7 @@ router.post('/register', rateLimitMiddleware, async (req: Request, res: Response
 });
 
 // POST /api/auth/login
-router.post('/login', rateLimitMiddleware, async (req: Request, res: Response) => {
+router.post('/login', authLimiter, async (req: Request, res: Response) => {
   try {
     const validatedData = loginSchema.parse(req.body);
 
@@ -349,7 +349,7 @@ router.post('/login', rateLimitMiddleware, async (req: Request, res: Response) =
 });
 
 // POST /api/auth/google
-router.post('/google', rateLimitMiddleware, async (req: Request, res: Response) => {
+router.post('/google', authLimiter, async (req: Request, res: Response) => {
   try {
     const validatedData = googleAuthSchema.parse(req.body);
 
@@ -522,7 +522,7 @@ router.post('/refresh', authenticateToken, async (req: Request, res: Response) =
 });
 
 // POST /api/auth/forgot-password
-router.post('/forgot-password', rateLimitMiddleware, async (req: Request, res: Response) => {
+router.post('/forgot-password', authLimiter, async (req: Request, res: Response) => {
   try {
     const validatedData = passwordResetSchema.parse(req.body);
 
@@ -582,7 +582,7 @@ router.post('/forgot-password', rateLimitMiddleware, async (req: Request, res: R
 });
 
 // POST /api/auth/reset-password
-router.post('/reset-password', rateLimitMiddleware, async (req: Request, res: Response) => {
+router.post('/reset-password', authLimiter, async (req: Request, res: Response) => {
   try {
     const validatedData = passwordResetConfirmSchema.parse(req.body);
 
@@ -651,7 +651,7 @@ router.post('/reset-password', rateLimitMiddleware, async (req: Request, res: Re
 });
 
 // POST /api/auth/verify-email
-router.post('/verify-email', rateLimitMiddleware, async (req: Request, res: Response) => {
+router.post('/verify-email', authLimiter, async (req: Request, res: Response) => {
   try {
     const { token } = req.body;
 

@@ -19,19 +19,14 @@ export class EncryptionService {
     );
 
     const cipher = crypto.createCipher(this.algorithm, derivedKey, iv);
-    cipher.setAAD(Buffer.from('cabe-arena', 'utf8'));
 
     let encrypted = cipher.update(text, 'utf8', 'hex');
     encrypted += cipher.final('hex');
-
-    const tag = cipher.getAuthTag();
 
     return (
       salt.toString('hex') +
       ':' +
       iv.toString('hex') +
-      ':' +
-      tag.toString('hex') +
       ':' +
       encrypted
     );
@@ -53,8 +48,6 @@ export class EncryptionService {
     );
 
     const decipher = crypto.createDecipher(this.algorithm, derivedKey, iv);
-    decipher.setAAD(Buffer.from('cabe-arena', 'utf8'));
-    decipher.setAuthTag(tag);
 
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');

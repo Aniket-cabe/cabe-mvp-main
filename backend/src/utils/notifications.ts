@@ -334,7 +334,7 @@ function createAuditAlertMessage(
         style: metrics.status === 'critical' ? 'danger' : 'primary',
       },
     ],
-  });
+  } as any);
 
   // Add timestamp
   blocks.push({
@@ -346,7 +346,7 @@ function createAuditAlertMessage(
         emoji: true,
       },
     ],
-  });
+  } as any);
 
   return {
     text: messageText,
