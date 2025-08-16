@@ -480,7 +480,7 @@ router.post('/logout', authenticateToken, async (req: Request, res: Response) =>
     // In a Redis-based session system, you would invalidate the session here
     // For now, we'll just return success (client should delete the token)
     
-    logger.info('✅ User logged out:', { userId: req.user?.id });
+    logger.info('✅ User logged out:', { userId: (req.user as any)?.id });
 
     res.json({
       success: true,
@@ -501,9 +501,9 @@ router.post('/logout', authenticateToken, async (req: Request, res: Response) =>
 router.post('/refresh', authenticateToken, async (req: Request, res: Response) => {
   try {
     // Create new token
-    const newToken = createJWTToken(req.user!.id, req.user!.email);
+    const newToken = createJWTToken((req.user as any)!.id, (req.user as any)!.email);
 
-    logger.info('✅ Token refreshed:', { userId: req.user!.id });
+          logger.info('✅ Token refreshed:', { userId: (req.user as any)!.id });
 
     res.json({
       success: true,

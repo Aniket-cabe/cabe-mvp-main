@@ -65,7 +65,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
     return `#${rank}`;
   };
 
-  const handleSort = (newSortBy: string) => {
+  const handleSort = (newSortBy: "points" | "skill" | "rank" | "activity") => {
     const newSortOrder = newSortBy === localSortBy && localSortOrder === 'asc' ? 'desc' : 'asc';
     setLocalSortBy(newSortBy);
     setLocalSortOrder(newSortOrder);
@@ -110,7 +110,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
     className = '' 
   }: { 
     label: string; 
-    sortKey: string; 
+    sortKey: "points" | "skill" | "rank" | "activity"; 
     className?: string;
   }) => (
     <button
