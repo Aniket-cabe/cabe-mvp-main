@@ -8,6 +8,7 @@
     "dev": "tsx watch src/cluster.ts",
     "dev:cluster": "tsx src/cluster.ts",
     "clean": "rimraf dist",
+    "clean:alt": "rm -rf dist",
     "build": "npm run clean && tsup",
     "start": "node dist/cluster.js",
     "start:single": "node dist/index.js",
