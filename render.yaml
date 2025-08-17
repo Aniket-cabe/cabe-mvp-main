@@ -2,92 +2,115 @@
 # This file configures the backend service for deployment on Render
 
 services:
-  # Main backend API service
   - type: web
-    name: cabe-backend
+    name: cabe-arena-backend
     env: node
     plan: starter
     region: oregon
-    rootDir: backend
-    buildCommand: npm ci --include=dev && npm run build
+    buildCommand: npm install && npm run build
     startCommand: npm start
-    healthCheckPath: /health
-    autoDeploy: true
-    
-    # Environment variables
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 3001
-      - key: LOG_LEVEL
-        value: info
-      - key: CLUSTER_ENABLED
-        value: true
-      - key: CLUSTER_WORKERS
-        value: 4
+        value: 3000
+      - key: AIRTABLE_API_KEY
+        sync: false
+      - key: AIRTABLE_BASE_ID
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGIN
+        value: https://cabe-arena.vercel.app
       - key: RATE_LIMIT_WINDOW_MS
         value: 900000
       - key: RATE_LIMIT_MAX_REQUESTS
         value: 100
-      - key: ENABLE_AI_SCORING
-        value: true
-      - key: ENABLE_AUDIT_LOGGING
-        value: true
-      - key: ENABLE_SLACK_NOTIFICATIONS
-        value: false
-    
-    # Required environment variables (must be set in Render dashboard)
-    # These will be prompted during service creation:
-    # - SUPABASE_URL
-    # - SUPABASE_SERVICE_ROLE_KEY
-    # - SUPABASE_ANON_KEY
-    # - OPENAI_API_KEY
-    # - JWT_SECRET
-    # - CORS_ORIGIN
-    # - FRONTEND_URL
+      - key: LOG_LEVEL
+        value: info
+    autoDeploy: true
+    branch: main
+    numInstances: 1
+    disk:
+      name: cabe-arena-data
+      mountPath: /data
+      sizeGB: 1
 
-  # PostgreSQL database
-  - type: pserv
-    name: cabe-db
-    env: postgresql
+  - type: web
+    name: cabe-arena-frontend
+    env: static
     plan: starter
     region: oregon
-    databaseName: cabe_arena
-    user: cabe_user
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://cabe-arena-backend.onrender.com
+      - key: VITE_APP_NAME
+        value: CaBE Arena
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+    autoDeploy: true
+    branch: main
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-XSS-Protection
+        value: 1; mode=block
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*.js
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*.css
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://cabe-arena-backend.onrender.com/api/*
 
-# Environment variable groups for different environments
-envVarGroups:
-  - name: production
+databases:
+  - name: cabe-arena-db
+    databaseName: cabe_arena
+    user: cabe_arena_user
+    plan: starter
+    region: oregon
+    ipAllowList: []
+    terminationProtection: false
+
+envGroups:
+  - name: cabe-arena-env
     envVars:
       - key: NODE_ENV
         value: production
       - key: LOG_LEVEL
-        value: warn
-      - key: ENABLE_DEBUG_MODE
-        value: false
-
-  - name: staging
-    envVars:
-      - key: NODE_ENV
-        value: staging
-      - key: LOG_LEVEL
         value: info
-      - key: ENABLE_DEBUG_MODE
-        value: true
-
-# Health check configuration
-healthChecks:
-  - name: api-health
-    path: /health
-    interval: 30s
-    timeout: 10s
-    gracePeriod: 30s
-    maxFailures: 3
-
-  - name: detailed-health
-    path: /health/detailed
-    interval: 60s
-    timeout: 15s
-    gracePeriod: 60s
-    maxFailures: 2
+      - key: CORS_ORIGIN
+        value: https://cabe-arena.vercel.app
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: 100

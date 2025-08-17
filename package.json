@@ -19,7 +19,14 @@
     "test:load": "node tools/load-test.js",
     "test:load:advanced": "node tools/advanced-load-test.js",
     "test:smoke": "bash tools/smoke-test.sh",
-    "test:all": "npm run test:smoke && npm run test:e2e && npm run test:load",
+    "test:all": "powershell -ExecutionPolicy Bypass -File scripts/run-all-tests.ps1",
+    "test:unit": "yarn workspace @cabe-arena/backend test:unit && yarn workspace @cabe-arena/frontend test:unit",
+    "test:integration": "yarn workspace @cabe-arena/backend test:integration && yarn workspace @cabe-arena/frontend test:integration",
+    "test:coverage": "yarn workspace @cabe-arena/backend test:coverage && yarn workspace @cabe-arena/frontend test:coverage",
+    "test:performance": "npm run test:load && npm run test:load:advanced",
+    "test:security": "yarn workspace @cabe-arena/backend test:security",
+    "test:deployment": "powershell -ExecutionPolicy Bypass -File scripts/test-deployment.ps1",
+    "test:comprehensive": "npm run test:unit && npm run test:integration && npm run test:e2e && npm run test:performance && npm run test:security",
     "deploy:validate": "bash scripts/deploy-production.sh",
     "lint": "yarn workspaces run lint",
     "lint:fix": "yarn workspaces run lint:fix",
@@ -28,7 +35,10 @@
     "type-check": "yarn workspaces run type-check",
     "clean": "yarn workspaces run clean",
     "prepare": "husky install",
-    "deploy:audit": "node -e \"console.log('Running deployment audit...'); require('./COMPREHENSIVE-DEPLOYMENT-AUDIT-REPORT.md')\""
+    "deploy:audit": "node -e \"console.log('Running deployment audit...'); require('./COMPREHENSIVE-DEPLOYMENT-AUDIT-REPORT.md')\"",
+    "start": "concurrently \"yarn start:backend\" \"yarn start:frontend\"",
+    "start:backend": "yarn workspace @cabe-arena/backend start",
+    "start:frontend": "yarn workspace @cabe-arena/frontend preview"
   },
   "devDependencies": {
     "@commitlint/cli": "^18.4.3",
