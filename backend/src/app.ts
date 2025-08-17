@@ -6,7 +6,7 @@ import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import { promClient } from 'prom-client';
 import statusMonitor from 'express-status-monitor';
-import { router as ssoRoutes } from './routes/sso.routes';
+import { ssoRoutes } from './routes/sso.routes';
 
 // Import middleware
 import {
@@ -524,4 +524,5 @@ if (isDevelopment) {
   logger.info(`🌍 Environment: ${env.NODE_ENV}`);
 }
 
+export { app, env };
 export default app;

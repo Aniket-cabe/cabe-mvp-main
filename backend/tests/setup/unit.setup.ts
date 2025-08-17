@@ -191,8 +191,8 @@ vi.mock('jsonwebtoken', () => ({
   decode: vi.fn(() => ({ userId: 'mock-user-id', role: 'user' }))
 }));
 
-// Mock bcrypt for password hashing
-vi.mock('bcrypt', () => ({
+// Mock bcryptjs for password hashing
+vi.mock('bcryptjs', () => ({
   hash: vi.fn(() => Promise.resolve('mock-hashed-password')),
   compare: vi.fn(() => Promise.resolve(true)),
   genSalt: vi.fn(() => Promise.resolve('mock-salt'))

@@ -70,7 +70,7 @@ const testScenarios: DeviationAnalysisInput[] = [
     aiAuditScore: 65,
     userCode: `
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 app.post('/auth/login', async (req, res) => {
   const { email, password } = req.body;
@@ -97,7 +97,7 @@ app.post('/auth/login', async (req, res) => {
   res.json({ token, user: { id: user._id, email: user.email } });
 });`,
     userProof:
-      'Implemented secure JWT authentication with password hashing using bcrypt. Includes proper error handling and token generation.',
+      'Implemented secure JWT authentication with password hashing using bcryptjs. Includes proper error handling and token generation.',
     taskDescription:
       'Create a secure user authentication system using JWT tokens',
     submissionContext: {
@@ -352,7 +352,7 @@ console.log(reverseString('world')); // 'dlrow'`,
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const bcrypt = require('bcrypt');
+  const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const app = express();

@@ -7,9 +7,10 @@
   "scripts": {
     "dev": "tsx watch src/cluster.ts",
     "dev:cluster": "tsx src/cluster.ts",
-    "build": "powershell -Command \"Write-Host 'Skipping TypeScript build for deployment'; if (!(Test-Path dist)) { New-Item -ItemType Directory -Path dist }; Copy-Item -Path 'src\\*' -Destination 'dist' -Recurse -Force\"",
-    "start": "tsx dist/cluster.ts",
-    "start:single": "tsx dist/index.ts",
+    "clean": "rimraf dist",
+    "build": "npm run clean && tsup",
+    "start": "node dist/cluster.js",
+    "start:single": "node dist/index.js",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
@@ -27,7 +28,6 @@
     "metrics:test": "tsx scripts/test-audit-metrics.ts",
     "export:test": "tsx scripts/test-audit-export.ts",
     "type-check": "tsc --noEmit",
-    "clean": "rm -rf dist node_modules",
     "security:audit": "npm audit --audit-level=moderate",
     "security:fix": "npm audit fix",
     "db:migrate": "tsx scripts/migrate-database.ts",
@@ -74,8 +74,8 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@cabe-arena/eslint-config": "file:..\\shared\\eslint-config",
-    "@cabe-arena/ts-config-base": "file:..\\shared\\ts-config-base",
+    "@cabe-arena/eslint-config": "file:../shared/eslint-config",
+    "@cabe-arena/ts-config-base": "file:../shared/ts-config-base",
     "@faker-js/faker": "^8.4.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/bull": "^3.15.9",
@@ -105,8 +105,10 @@
     "jest-extended": "^4.0.2",
     "nock": "^13.3.0",
     "prettier": "^3.1.0",
+    "rimraf": "^5.0.5",
     "supertest": "^6.3.3",
     "testcontainers": "^10.7.1",
+    "tsup": "^8.0.1",
     "tsx": "^4.6.0",
     "typescript": "^5.3.2",
     "vitest": "^1.0.0"

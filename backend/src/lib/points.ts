@@ -150,32 +150,7 @@ const BASE_MAX_BONUS = 1000; // Base maximum bonus points
 const BASE_CAP = 2000; // Base point cap
 const BASE_OVER_CAP_BOOST = 500; // Base bonus when exceeding cap
 
-/**
- * Get skill configuration for a given skill area
- * @param skillArea - The skill area to get configuration for
- * @returns Skill configuration or default configuration
- */
-function getSkillConfiguration(skillArea: string) {
-  const config = Object.values(SKILL_CONFIGURATIONS).find(
-    (config) => config.slug === skillArea || config.name === skillArea
-  );
-  
-  if (!config) {
-    // Return default configuration for unknown skills
-    return {
-      name: skillArea,
-      slug: skillArea,
-      baseMultiplier: 1.0,
-      bonusMultiplier: 1.0,
-      cap: BASE_CAP,
-      overCapBoost: BASE_OVER_CAP_BOOST,
-      weights: DEFAULT_WEIGHTS,
-      description: 'Standard skill configuration',
-    };
-  }
-  
-  return config;
-}
+
 
 /**
  * Calculate weighted average effort score: L = Σ(Wᵢ × Fᵢ) / Σ(Wᵢ)
@@ -462,7 +437,21 @@ export function getSkillConfiguration(skillArea: string) {
     (config) => config.slug === skillArea || config.name === skillArea
   );
   
-  return config || null;
+  if (!config) {
+    // Return default configuration for unknown skills
+    return {
+      name: skillArea,
+      slug: skillArea,
+      baseMultiplier: 1.0,
+      bonusMultiplier: 1.0,
+      cap: BASE_CAP,
+      overCapBoost: BASE_OVER_CAP_BOOST,
+      weights: DEFAULT_WEIGHTS,
+      description: 'Standard skill configuration',
+    };
+  }
+  
+  return config;
 }
 
 /**
