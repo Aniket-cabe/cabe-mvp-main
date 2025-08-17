@@ -14,13 +14,18 @@
     "test": "yarn workspaces run test",
     "test:backend": "yarn workspace @cabe-arena/backend test",
     "test:frontend": "yarn workspace @cabe-arena/frontend test",
+    "test:e2e": "cypress run",
+    "test:e2e:open": "cypress open",
+    "test:load": "node tools/load-test.js",
+    "test:smoke": "bash tools/smoke-test.sh",
     "lint": "yarn workspaces run lint",
     "lint:fix": "yarn workspaces run lint:fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "type-check": "yarn workspaces run type-check",
     "clean": "yarn workspaces run clean",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "deploy:audit": "node -e \"console.log('Running deployment audit...'); require('./COMPREHENSIVE-DEPLOYMENT-AUDIT-REPORT.md')\""
   },
   "devDependencies": {
     "@commitlint/cli": "^18.4.3",

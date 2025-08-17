@@ -1,0 +1,93 @@
+# CaBE Arena Backend - Render Deployment Configuration
+# This file configures the backend service for deployment on Render
+
+services:
+  # Main backend API service
+  - type: web
+    name: cabe-backend
+    env: node
+    plan: starter
+    region: oregon
+    rootDir: backend
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    
+    # Environment variables
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: LOG_LEVEL
+        value: info
+      - key: CLUSTER_ENABLED
+        value: true
+      - key: CLUSTER_WORKERS
+        value: 4
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: 100
+      - key: ENABLE_AI_SCORING
+        value: true
+      - key: ENABLE_AUDIT_LOGGING
+        value: true
+      - key: ENABLE_SLACK_NOTIFICATIONS
+        value: false
+    
+    # Required environment variables (must be set in Render dashboard)
+    # These will be prompted during service creation:
+    # - SUPABASE_URL
+    # - SUPABASE_SERVICE_ROLE_KEY
+    # - SUPABASE_ANON_KEY
+    # - OPENAI_API_KEY
+    # - JWT_SECRET
+    # - CORS_ORIGIN
+    # - FRONTEND_URL
+
+  # PostgreSQL database
+  - type: pserv
+    name: cabe-db
+    env: postgresql
+    plan: starter
+    region: oregon
+    databaseName: cabe_arena
+    user: cabe_user
+
+# Environment variable groups for different environments
+envVarGroups:
+  - name: production
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: warn
+      - key: ENABLE_DEBUG_MODE
+        value: false
+
+  - name: staging
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: LOG_LEVEL
+        value: info
+      - key: ENABLE_DEBUG_MODE
+        value: true
+
+# Health check configuration
+healthChecks:
+  - name: api-health
+    path: /health
+    interval: 30s
+    timeout: 10s
+    gracePeriod: 30s
+    maxFailures: 3
+
+  - name: detailed-health
+    path: /health/detailed
+    interval: 60s
+    timeout: 15s
+    gracePeriod: 60s
+    maxFailures: 2
