@@ -32,7 +32,7 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default('7d'),
 
   // Redis
-  REDIS_URL: z.string().url().optional(),
+  REDIS_URL: z.string().regex(/^redis(s)?:\/\/.+$/, "Invalid Redis URL format. Must be redis:// or rediss://").optional(),
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 
