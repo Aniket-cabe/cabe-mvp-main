@@ -8,11 +8,13 @@ const numCPUs = os.cpus().length;
 const numWorkers = Math.max(1, numCPUs - 1);
 
 if (cluster.isPrimary) {
+  const PORT = process.env.PORT || env.PORT;
   logger.info(`Master process ${process.pid} is running`);
   logger.info(
     `Forking ${numWorkers} workers (${numCPUs} total CPUs, reserving 1 for OS)`
   );
-  logger.info(`Environment: ${env.NODE_ENV}, Port: ${env.PORT}`);
+  logger.info(`Environment: ${env.NODE_ENV}, Port: ${PORT}`);
+  logger.info(`Process.env.PORT: ${process.env.PORT || 'not set'}`);
 
   // Fork workers
   for (let i = 0; i < numWorkers; i++) {
