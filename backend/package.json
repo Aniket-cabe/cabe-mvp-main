@@ -76,7 +76,6 @@
   },
   "devDependencies": {
     "@cabe-arena/eslint-config": "file:../shared/eslint-config",
-    "@cabe-arena/ts-config-base": "file:../shared/ts-config-base",
     "@faker-js/faker": "^8.4.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/bull": "^3.15.9",
