@@ -8,8 +8,8 @@
     "dev": "tsx watch src/cluster.ts",
     "dev:cluster": "tsx src/cluster.ts",
     "build": "tsup --clean",
-    "start": "node dist/cluster.js",
-    "start:single": "node dist/index.js",
+    "start": "node dist/cluster.cjs",
+    "start:single": "node dist/index.cjs",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
@@ -112,7 +112,7 @@
     "vitest": "^1.0.0"
   },
   "engines": {
-    "node": "18.18.0"
+    "node": ">=18.18.0 <19.0.0"
   },
   "packageManager": "npm@>=10"
 }

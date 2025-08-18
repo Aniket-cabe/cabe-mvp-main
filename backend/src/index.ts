@@ -1,9 +1,10 @@
 import { app, env } from './app';
 import logger from './utils/logger';
 
-const server = app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, '0.0.0.0', () => {
   logger.info(`Worker ${process.pid} is running on port ${env.PORT}`);
   logger.info(`Environment: ${env.NODE_ENV}`);
+  logger.info(`Server bound to 0.0.0.0:${env.PORT}`);
 });
 
 // Graceful shutdown

@@ -5,47 +5,33 @@ services:
   - type: web
     name: cabe-arena-backend
     env: node
-    plan: starter
-    region: oregon
+    plan: free
+    rootDir: backend
     buildCommand: npm install && npm run build
     startCommand: npm start
-    healthCheckPath: /api/health
     envVars:
+      - key: NODE_VERSION
+        value: 18.18.0
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 3000
-      - key: AIRTABLE_API_KEY
-        sync: false
-      - key: AIRTABLE_BASE_ID
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: JWT_SECRET
-        sync: false
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_ANON_KEY
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: DATABASE_URL
-        sync: false
-      - key: CORS_ORIGIN
-        value: https://cabe-arena.vercel.app
-      - key: RATE_LIMIT_WINDOW_MS
-        value: 900000
-      - key: RATE_LIMIT_MAX_REQUESTS
-        value: 100
-      - key: LOG_LEVEL
-        value: info
-    autoDeploy: true
-    branch: main
-    numInstances: 1
-    disk:
-      name: cabe-arena-data
-      mountPath: /data
-      sizeGB: 1
+      - key: NPM_CONFIG_NODE_VERSION
+        value: 18.18.0
+    buildFilter:
+      paths:
+        - backend/**
+      ignorePaths:
+        - frontend/**
+        - docs/**
+        - .github/**
+        - cypress/**
+        - tests/**
+        - tools/**
+        - monitoring/**
+        - nginx/**
+        - services/**
+        - shared/**
+        - src/**
+        - k8s/**
 
   - type: web
     name: cabe-arena-frontend
