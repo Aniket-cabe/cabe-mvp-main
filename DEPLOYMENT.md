@@ -64,6 +64,7 @@ The backend uses `tsup` for transpilation without type checking to ensure builds
 ### Health Check Endpoint
 
 The backend provides a health check endpoint at `/health` that verifies:
+
 - Database connectivity
 - AI service configuration
 - External service configuration
@@ -110,6 +111,7 @@ The frontend build process:
 ### PWA Features
 
 The frontend includes Progressive Web App features:
+
 - Service worker for offline functionality
 - Web app manifest
 - Automatic updates
@@ -119,8 +121,7 @@ The frontend includes Progressive Web App features:
 ### Backend Changes Made
 
 1. **Replaced PowerShell commands** with cross-platform alternatives:
-   - `rimraf` for directory cleaning
-   - `tsup` for TypeScript transpilation
+   - `tsup --clean` for directory cleaning and TypeScript transpilation
    - `tsx` for development
 
 2. **Fixed dependency conflicts**:
