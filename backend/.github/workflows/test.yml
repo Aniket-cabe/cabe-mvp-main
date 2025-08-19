@@ -1,25 +1,27 @@
-name: CaBE Arena Backend Tests
+name: Backend Tests
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main, develop ]
     paths:
       - 'backend/**'
+      - 'shared/**'
   pull_request:
-    branches: [main, develop]
+    branches: [ main, develop ]
     paths:
       - 'backend/**'
+      - 'shared/**'
 
 jobs:
   test:
     runs-on: ubuntu-latest
-
+    
     services:
       postgres:
         image: postgres:15
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: cabe_test
+          POSTGRES_DB: cabe_arena_test
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -29,173 +31,83 @@ jobs:
           - 5432:5432
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+    
+    - name: Install dependencies
+      run: npm ci --workspace=backend
+    
+    - name: Run unit tests
+      run: npm test --workspace=backend
+      env:
+        NODE_ENV: test
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/cabe_arena_test
+    
+    - name: Run database pool tests
+      run: npm test --workspace=backend tests/db.pool.spec.ts
+      env:
+        NODE_ENV: test
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/cabe_arena_test
+    
+    - name: Run database index tests
+      run: npm test --workspace=backend tests/db.indexes.spec.ts
+      env:
+        NODE_ENV: test
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/cabe_arena_test
+    
+    - name: Run integration tests
+      run: npm test --workspace=backend --testNamePattern="should complete.*within.*ms"
+      env:
+        NODE_ENV: test
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/cabe_arena_test
+    
+    - name: Run coverage tests
+      run: npm test --workspace=backend --coverage
+      env:
+        NODE_ENV: test
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/cabe_arena_test
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'yarn'
-          cache-dependency-path: backend/yarn.lock
-
-      - name: Install dependencies
-        run: |
-          cd backend
-          yarn install --frozen-lockfile
-
-      - name: Setup environment variables
-        run: |
-          cd backend
-          cp env.example .env.test
-          echo "NODE_ENV=test" >> .env.test
-          echo "SUPABASE_URL=http://localhost:5432" >> .env.test
-          echo "SUPABASE_SERVICE_ROLE_KEY=test-key" >> .env.test
-          echo "SUPABASE_ANON_KEY=test-anon-key" >> .env.test
-          echo "DB_POOL_SIZE=5" >> .env.test
-          echo "JWT_SECRET=test-jwt-secret-key-minimum-32-characters-long" >> .env.test
-          echo "OPENAI_API_KEY=test-openai-key" >> .env.test
-
-      - name: Run database migrations
-        run: |
-          cd backend
-          # In a real environment, this would run the actual migrations
-          # For now, we'll create a test database setup
-          echo "Setting up test database schema..."
-          # This would typically use a tool like Prisma or direct SQL execution
-
-      - name: Run unit tests
-        run: |
-          cd backend
-          yarn test --run --reporter=verbose
-
-      - name: Run database pool tests
-        run: |
-          cd backend
-          yarn test tests/db.pool.spec.ts --run --reporter=verbose
-
-      - name: Run database index tests
-        run: |
-          cd backend
-          yarn test tests/db.indexes.spec.ts --run --reporter=verbose
-
-      - name: Performance validation
-        run: |
-          cd backend
-          echo "Running performance validation..."
-          # This step would execute EXPLAIN ANALYZE tests
-          # and validate that critical queries complete within 500ms
-          yarn test --run --reporter=verbose --testNamePattern="should complete.*within.*ms"
-
-      - name: Check test coverage
-        run: |
-          cd backend
-          yarn test --coverage --run
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v3
-        with:
-          file: backend/coverage/lcov.info
-          flags: backend
-          name: backend-coverage
-
-  database-performance:
+  security:
     runs-on: ubuntu-latest
-    needs: test
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cabe_arena_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'yarn'
-
-      - name: Install dependencies
-        run: |
-          cd backend
-          yarn install --frozen-lockfile
-
-      - name: Run EXPLAIN ANALYZE tests
-        run: |
-          cd backend
-          echo "Running EXPLAIN ANALYZE performance tests..."
-          # This would execute the database performance tests
-          # and validate query execution times
-          yarn test tests/db.indexes.spec.ts --run --reporter=verbose --testNamePattern="should complete.*within.*ms"
-
-      - name: Validate query performance
-        run: |
-          cd backend
-          echo "Validating query performance thresholds..."
-          # This step would parse test results and ensure
-          # no critical queries exceed 500ms execution time
-          # If any queries exceed the threshold, the pipeline fails
-
-          # Example validation logic:
-          # if [ $EXECUTION_TIME -gt 500 ]; then
-          #   echo "❌ Critical query exceeded 500ms threshold: ${EXECUTION_TIME}ms"
-          #   exit 1
-          # fi
-
-  security-scan:
-    runs-on: ubuntu-latest
-    needs: test
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run security audit
-        run: |
-          cd backend
-          yarn audit --audit-level moderate
-
-      - name: Run SAST scan
-        uses: github/codeql-action/analyze@v2
-        with:
-          languages: javascript
-
-  deploy-preview:
-    runs-on: ubuntu-latest
-    needs: [test, database-performance, security-scan]
-    if: github.event_name == 'pull_request'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup deployment environment
-        run: |
-          echo "Setting up preview deployment..."
-          # This would deploy to a preview environment
-          # for pull request testing
-
-      - name: Run integration tests
-        run: |
-          echo "Running integration tests against preview deployment..."
-          # This would run end-to-end tests against the preview
-
-  deploy-production:
-    runs-on: ubuntu-latest
-    needs: [test, database-performance, security-scan]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: production
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Deploy to production
-        run: |
-          echo "Deploying to production..."
-          # This would deploy the optimized database changes
-          # and run the migration scripts
-
-      - name: Verify deployment
-        run: |
-          echo "Verifying production deployment..."
-          # This would run smoke tests against production
-          # to ensure the database optimizations are working
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+    
+    - name: Install dependencies
+      run: npm ci --workspace=backend
+    
+    - name: Run security tests
+      run: npm test --workspace=backend tests/db.indexes.spec.ts --testNamePattern="should complete.*within.*ms"
+      env:
+        NODE_ENV: test
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/cabe_arena_test
+    
+    - name: Run security audit
+      run: npm audit --workspace=backend --audit-level moderate

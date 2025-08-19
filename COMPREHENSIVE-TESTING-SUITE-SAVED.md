@@ -127,14 +127,13 @@ mode = "sequential"
 
 The `replit.nix` file manages system dependencies using Nix packages. Here are production-ready templates:
 
-**Node.js Full-Stack Setup (Enhanced):**
+**Node.js Full-Stack Setup:**
 ```nix
 { pkgs }: {
   deps = [
     pkgs.nodejs-20_x
     pkgs.nodePackages.typescript
     pkgs.nodePackages.pnpm
-    pkgs.yarn
     pkgs.python3
     pkgs.gcc
     pkgs.pkg-config
@@ -144,11 +143,6 @@ The `replit.nix` file manages system dependencies using Nix packages. Here are p
     pkgs.pango
     pkgs.libjpeg
     pkgs.giflib
-    pkgs.postgresql
-    pkgs.redis
-    pkgs.git
-    pkgs.curl
-    pkgs.wget
   ];
 }
 ```
