@@ -12,6 +12,12 @@ export default defineConfig({
   minify: false,
   splitting: false,
   treeshake: true,
+  // Ensure proper file naming for Replit compatibility
+  outExtension({ format }) {
+    return {
+      js: format === 'cjs' ? '.js' : '.mjs'
+    }
+  },
   external: [
     // External dependencies that shouldn't be bundled
     'express',
@@ -49,6 +55,7 @@ export default defineConfig({
     'joi',
     'ajv',
     'airtable',
-    '@supabase/supabase-js'
+    '@supabase/supabase-js',
+    'pg-native'
   ]
 });

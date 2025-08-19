@@ -99,25 +99,25 @@ run_tests() {
     
     # Run backend tests
     log "Running backend tests..."
-    if ! yarn test:backend; then
+    if ! npm run test:backend; then
         error "Backend tests failed"
     fi
     
     # Run frontend tests
     log "Running frontend tests..."
-    if ! yarn test:frontend; then
+    if ! npm run test:frontend; then
         error "Frontend tests failed"
     fi
     
     # Run integration tests
     log "Running integration tests..."
-    if ! yarn test:integration; then
+    if ! npm run test:integration; then
         error "Integration tests failed"
     fi
     
     # Run security audit
     log "Running security audit..."
-    if ! yarn audit; then
+    if ! npm audit; then
         warning "Security vulnerabilities found - review required"
     fi
     
@@ -132,21 +132,21 @@ build_application() {
     
     # Clean previous builds
     log "Cleaning previous builds..."
-    yarn clean
+    npm run clean
     
     # Install dependencies
     log "Installing dependencies..."
-    yarn install --frozen-lockfile
+    npm ci
     
     # Build backend
     log "Building backend..."
-    if ! yarn build:backend; then
+    if ! npm run build:backend; then
         error "Backend build failed"
     fi
     
     # Build frontend
     log "Building frontend..."
-    if ! yarn build:frontend; then
+    if ! npm run build:frontend; then
         error "Frontend build failed"
     fi
     
@@ -197,7 +197,7 @@ deploy_application() {
     
     # Run database migrations
     log "Running database migrations..."
-    if ! docker-compose -f docker-compose.prod.yml exec -T backend yarn db:migrate; then
+    if ! docker-compose -f docker-compose.prod.yml exec -T backend npm run db:migrate; then
         error "Database migration failed"
     fi
     

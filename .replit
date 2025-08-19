@@ -1,0 +1,3 @@
+run = "npm run start:replit"
+language = "nodejs"
+onBoot = "npm install && npm run build:backend"

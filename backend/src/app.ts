@@ -46,6 +46,7 @@ import achievementsRouter from './routes/achievements';
 import referralsRouter from './routes/referrals';
 import adminRouter from './routes/admin';
 import performanceRouter from './routes/performance';
+import healthRouter from './routes/health';
 
 // Import utilities
 import logger from './utils/logger';
@@ -68,6 +69,11 @@ app.get('/metrics', async (req, res) => {
     res.status(500).end(err);
   }
 });
+
+// ============================================================================
+// HEALTH CHECK SETUP
+// ============================================================================
+app.use('/health', healthRouter);
 
 // ============================================================================
 // STATUS MONITOR SETUP

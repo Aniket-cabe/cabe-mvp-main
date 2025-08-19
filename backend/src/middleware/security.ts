@@ -245,7 +245,7 @@ export const securityHeaders = (
   next();
 };
 
-// Enhanced CORS configuration
+// Enhanced CORS configuration with Replit support
 export const corsOptions = {
   origin: (
     origin: string | undefined,
@@ -266,7 +266,7 @@ export const corsOptions = {
         callback(new Error('Not allowed by CORS'));
       }
     } else {
-      // Fallback to default allowed origins
+      // Fallback to default allowed origins including Replit domains
       const allowedOrigins = [
         'http://localhost:3000',
         'http://localhost:5173',
@@ -274,9 +274,25 @@ export const corsOptions = {
         'https://cabe-arena.com',
         'https://www.cabe-arena.com',
         'https://staging.cabe-arena.com',
+        // Replit domains
+        /^https:\/\/.*\.repl\.co$/,
+        /^https:\/\/.*\.replit\.dev$/,
+        /^https:\/\/.*\.replit\.app$/,
+        /^https:\/\/.*\.replit\.com$/,
       ];
 
-      if (allowedOrigins.includes(origin)) {
+      // Check if origin matches any allowed pattern
+      const isAllowed = allowedOrigins.some(allowed => {
+        if (typeof allowed === 'string') {
+          return origin === allowed;
+        }
+        if (allowed instanceof RegExp) {
+          return allowed.test(origin);
+        }
+        return false;
+      });
+
+      if (isAllowed) {
         callback(null, true);
       } else {
         logger.warn('CORS blocked request', { origin, ip: origin });

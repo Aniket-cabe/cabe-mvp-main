@@ -21,13 +21,31 @@ const parsePoolSize = (): number => {
   return parsed;
 };
 
+// Determine SSL configuration
+const determineSSLConfig = () => {
+  const databaseUrl = process.env.DATABASE_URL || '';
+  const forceSSL = process.env.FORCE_DB_SSL === 'true';
+  const isReplit = process.env.REPL_ID || process.env.REPL_SLUG;
+  
+  // Check if DATABASE_URL contains sslmode=require
+  const hasSSLMode = databaseUrl.includes('sslmode=require');
+  
+  // Enable SSL if:
+  // 1. FORCE_DB_SSL is true, OR
+  // 2. DATABASE_URL has sslmode=require, OR
+  // 3. Running on Replit
+  if (forceSSL || hasSSLMode || isReplit) {
+    return { rejectUnauthorized: false };
+  }
+  
+  return false;
+};
+
 // Pool configuration
 const poolConfig: PoolConfig = {
   connectionString: process.env.DATABASE_URL,
   max: parsePoolSize(),
-  ssl: {
-    rejectUnauthorized: false
-  },
+  ssl: determineSSLConfig(),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
   maxUses: 7500,

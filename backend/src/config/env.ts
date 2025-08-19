@@ -9,7 +9,7 @@ const envSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
     .default('development'),
-  PORT: z.string().transform(Number).default('3000'),
+  PORT: z.string().transform(Number).default('5000'),
 
   // Database
   SUPABASE_URL: z.string().url(),

@@ -3,42 +3,51 @@
   "version": "1.0.0",
   "description": "Cabe Arena Monorepo - Full-stack application with React frontend and Express backend",
   "private": true,
+  "workspaces": [
+    "backend",
+    "frontend",
+    "shared/*",
+    "services/*"
+  ],
   "scripts": {
-    "dev": "concurrently \"yarn dev:backend\" \"yarn dev:frontend\"",
-    "dev:backend": "yarn workspace @cabe-arena/backend dev",
-    "dev:frontend": "yarn workspace @cabe-arena/frontend dev",
-    "dev:cluster": "yarn workspace @cabe-arena/backend dev:cluster",
-    "build": "yarn workspaces run build",
-    "build:backend": "yarn workspace @cabe-arena/backend build",
-    "build:frontend": "yarn workspace @cabe-arena/frontend build",
-    "test": "yarn workspaces run test",
-    "test:backend": "yarn workspace @cabe-arena/backend test",
-    "test:frontend": "yarn workspace @cabe-arena/frontend test",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:cluster": "npm run dev:cluster --workspace=backend",
+    "build": "npm run build --workspaces",
+    "build:backend": "npm run build --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "test": "npm run test --workspaces",
+    "test:backend": "npm run test --workspace=backend",
+    "test:frontend": "npm run test --workspace=frontend",
     "test:e2e": "cypress run",
     "test:e2e:open": "cypress open",
     "test:load": "node tools/load-test.js",
     "test:load:advanced": "node tools/advanced-load-test.js",
     "test:smoke": "bash tools/smoke-test.sh",
     "test:all": "powershell -ExecutionPolicy Bypass -File scripts/run-all-tests.ps1",
-    "test:unit": "yarn workspace @cabe-arena/backend test:unit && yarn workspace @cabe-arena/frontend test:unit",
-    "test:integration": "yarn workspace @cabe-arena/backend test:integration && yarn workspace @cabe-arena/frontend test:integration",
-    "test:coverage": "yarn workspace @cabe-arena/backend test:coverage && yarn workspace @cabe-arena/frontend test:coverage",
+    "test:unit": "npm run test:unit --workspace=backend && npm run test:unit --workspace=frontend",
+    "test:integration": "npm run test:integration --workspace=backend && npm run test:integration --workspace=frontend",
+    "test:coverage": "npm run test:coverage --workspace=backend && npm run test:coverage --workspace=frontend",
     "test:performance": "npm run test:load && npm run test:load:advanced",
-    "test:security": "yarn workspace @cabe-arena/backend test:security",
+    "test:security": "npm run test:security --workspace=backend",
     "test:deployment": "powershell -ExecutionPolicy Bypass -File scripts/test-deployment.ps1",
     "test:comprehensive": "npm run test:unit && npm run test:integration && npm run test:e2e && npm run test:performance && npm run test:security",
     "deploy:validate": "bash scripts/deploy-production.sh",
-    "lint": "yarn workspaces run lint",
-    "lint:fix": "yarn workspaces run lint:fix",
+    "verify:replit": "node scripts/replit-compat-check.js",
+    "lint": "npm run lint --workspaces",
+    "lint:fix": "npm run lint:fix --workspaces",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "type-check": "yarn workspaces run type-check",
-    "clean": "yarn workspaces run clean",
+    "type-check": "npm run type-check --workspaces",
+    "clean": "npm run clean --workspaces",
     "prepare": "husky install",
     "deploy:audit": "node -e \"console.log('Running deployment audit...'); require('./COMPREHENSIVE-DEPLOYMENT-AUDIT-REPORT.md')\"",
-    "start": "concurrently \"yarn start:backend\" \"yarn start:frontend\"",
-    "start:backend": "yarn workspace @cabe-arena/backend start",
-    "start:frontend": "yarn workspace @cabe-arena/frontend preview"
+    "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:backend": "npm run start --workspace=backend",
+    "start:frontend": "npm run preview --workspace=frontend",
+    "start:replit": "npm run start:single --workspace=backend",
+    "install:all": "npm install && npm run build:backend"
   },
   "devDependencies": {
     "@commitlint/cli": "^18.4.3",
@@ -58,12 +67,9 @@
   },
   "engines": {
     "node": ">=20.0.0",
-    "yarn": ">=4.0.0"
+    "npm": ">=10.0.0"
   },
-  "pnpm": {
-    "lockfile": "pnpm-lock.yaml",
-    "overrides": {
-      "typescript": "^5.3.2"
-    }
+  "overrides": {
+    "typescript": "^5.3.2"
   }
 }

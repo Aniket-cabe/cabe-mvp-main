@@ -171,30 +171,30 @@ function App() {
 
 ```bash
 # Run WebSocket server tests
-yarn test tests/websocket.server.spec.ts
+npm run test tests/websocket.server.spec.ts
 
 # Run all backend tests
-yarn test
+npm run test
 ```
 
 ### Frontend Tests
 
 ```bash
 # Run WebSocket hook tests
-yarn test tests/useWebSocket.spec.ts
+npm run test tests/useWebSocket.spec.ts
 
 # Run all frontend tests
-yarn test
+npm run test
 ```
 
 ### E2E Tests
 
 ```bash
 # Run WebSocket E2E tests
-yarn cypress run --spec "cypress/e2e/websocket.cy.ts"
+npm run cypress run --spec "cypress/e2e/websocket.cy.ts"
 
 # Run all E2E tests
-yarn cypress run
+npm run cypress run
 ```
 
 ## 🔒 Security
@@ -267,7 +267,7 @@ The system has been tested with:
 
    ```bash
    cd backend
-   yarn dev
+   npm run dev
    ```
 
 2. The WebSocket server will start on port 8080 (configurable)
@@ -279,7 +279,7 @@ The system has been tested with:
 Enable debug logging:
 
 ```bash
-LOG_LEVEL=debug yarn dev
+LOG_LEVEL=debug npm run dev
 ```
 
 ### Testing WebSocket Events

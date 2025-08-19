@@ -88,7 +88,7 @@ OPENROUTER_API_KEY=your-openrouter-api-key-here
 The application will validate all required variables on startup:
 
 ```bash
-yarn dev:backend
+npm run dev:backend
 ```
 
 ## 🔑 Getting API Keys
@@ -201,7 +201,7 @@ SUPABASE_URL=https://test-project.supabase.co
    - Ensure no extra spaces or quotes
 
 2. **"Cannot find module"**
-   - Run `yarn install` to install dependencies
+   - Run `npm install` to install dependencies
    - Check Node.js version compatibility
 
 3. **"API key invalid"**

@@ -322,7 +322,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 ```bash
 # Run tests
-yarn test tests/db.*
+npm run test tests/db.*
 
 # Check pool statistics
 yarn test tests/db.pool.spec.ts

@@ -1,15 +1,15 @@
 # CaBE Arena MVP
 
-A modern full-stack platform for skill validation and gamified learning built with React, Express, TypeScript, and Yarn workspaces.
+A modern full-stack platform for skill validation and gamified learning built with React, Express, TypeScript, and npm workspaces.
 
 ## 🚀 Features
 
 - **Frontend**: React 18 + Vite 5 + TypeScript + Tailwind CSS
 - **Backend**: Express 5 + TypeScript + Pino Logger + Cluster Mode
 - **Shared**: ESLint + TypeScript configurations
-- **Development**: Yarn workspaces, Husky pre-commit hooks, Commitlint
+- **Development**: npm workspaces, Husky pre-commit hooks, Commitlint
 - **Testing**: Vitest + Jest + Supertest
-- **Package Management**: Yarn with pnpm lock (pessimistic mode)
+- **Package Management**: npm workspaces
 
 ## 📁 Project Structure
 
@@ -22,15 +22,15 @@ cabe-arena/
 │   └── ts-config-base/ # TypeScript base config
 ├── .husky/            # Git hooks
 ├── package.json       # Root workspace configuration
-├── .yarnrc.yml        # Yarn configuration
-├── pnpm-workspace.yaml # PNPM workspace configuration
+├── package-lock.json  # npm lock file
+├── pnpm-workspace.yaml # Workspace configuration (legacy)
 └── README.md          # This file
 ```
 
 ## 🛠️ Prerequisites
 
 - Node.js 20+
-- Yarn 4+
+- npm 10+
 
 ## 📦 Installation
 
@@ -40,7 +40,7 @@ git clone <repository-url>
 cd cabe-arena
 
 # Install dependencies
-yarn install
+npm install
 
 # Set up environment variables
 cp backend/env.example backend/.env
@@ -54,62 +54,62 @@ cp frontend/env.example frontend/.env
 
 ```bash
 # Start both backend and frontend concurrently
-yarn dev
+npm run dev
 
 # Start individual services
-yarn dev:backend
-yarn dev:frontend
+npm run dev:backend
+npm run dev:frontend
 
 # Start backend in cluster mode
-yarn dev:cluster
+npm run dev:cluster
 ```
 
 ### Build
 
 ```bash
 # Build all packages
-yarn build
+npm run build
 
 # Build specific packages
-yarn build:backend
-yarn build:frontend
+npm run build:backend
+npm run build:frontend
 ```
 
 ### Testing
 
 ```bash
 # Run all tests
-yarn test
+npm run test
 
 # Run tests for specific packages
-yarn test:backend
-yarn test:frontend
+npm run test:backend
+npm run test:frontend
 ```
 
 ### Code Quality
 
 ```bash
 # Lint all packages
-yarn lint
+npm run lint
 
 # Fix linting issues
-yarn lint:fix
+npm run lint:fix
 
 # Format code
-yarn format
+npm run format
 
 # Check formatting
-yarn format:check
+npm run format:check
 
 # Type checking
-yarn type-check
+npm run type-check
 ```
 
 ### Cleanup
 
 ```bash
 # Clean all packages
-yarn clean
+npm run clean
 ```
 
 ## 🔧 Configuration
@@ -136,40 +136,40 @@ VITE_API_URL=http://localhost:3001
 
 ### Root Scripts
 
-- `yarn dev` - Start both backend and frontend concurrently
-- `yarn dev:backend` - Start backend in development mode
-- `yarn dev:frontend` - Start frontend in development mode
-- `yarn dev:cluster` - Start backend in cluster mode
-- `yarn build` - Build all packages
-- `yarn build:backend` - Build backend only
-- `yarn build:frontend` - Build frontend only
-- `yarn test` - Run all tests
-- `yarn test:backend` - Run backend tests
-- `yarn test:frontend` - Run frontend tests
-- `yarn lint` - Lint all packages
-- `yarn lint:fix` - Fix linting issues
-- `yarn format` - Format code with Prettier
-- `yarn format:check` - Check code formatting
-- `yarn type-check` - Run TypeScript type checking
-- `yarn clean` - Clean all packages
+- `npm run dev` - Start both backend and frontend concurrently
+- `npm run dev:backend` - Start backend in development mode
+- `npm run dev:frontend` - Start frontend in development mode
+- `npm run dev:cluster` - Start backend in cluster mode
+- `npm run build` - Build all packages
+- `npm run build:backend` - Build backend only
+- `npm run build:frontend` - Build frontend only
+- `npm run test` - Run all tests
+- `npm run test:backend` - Run backend tests
+- `npm run test:frontend` - Run frontend tests
+- `npm run lint` - Lint all packages
+- `npm run lint:fix` - Fix linting issues
+- `npm run format` - Format code with Prettier
+- `npm run format:check` - Check code formatting
+- `npm run type-check` - Run TypeScript type checking
+- `npm run clean` - Clean all packages
 
 ### Backend Scripts
 
-- `yarn dev` - Start development server with tsx
-- `yarn dev:cluster` - Start cluster mode
-- `yarn build` - Build TypeScript
-- `yarn start` - Start production server
-- `yarn start:cluster` - Start production cluster mode
-- `yarn test` - Run tests with Vitest
-- `yarn test:watch` - Run tests in watch mode
+- `npm run dev` - Start development server with tsx
+- `npm run dev:cluster` - Start cluster mode
+- `npm run build` - Build TypeScript
+- `npm run start` - Start production server
+- `npm run start:cluster` - Start production cluster mode
+- `npm run test` - Run tests with Vitest
+- `npm run test:watch` - Run tests in watch mode
 
 ### Frontend Scripts
 
-- `yarn dev` - Start Vite dev server
-- `yarn build` - Build for production
-- `yarn preview` - Preview production build
-- `yarn test` - Run tests with Vitest
-- `yarn test:watch` - Run tests in watch mode
+- `npm run dev` - Start Vite dev server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run test` - Run tests with Vitest
+- `npm run test:watch` - Run tests in watch mode
 
 ## 🏗️ Architecture
 
@@ -214,32 +214,32 @@ The project uses Husky for Git hooks:
 
 ```bash
 # Build
-yarn build:backend
+npm run build:backend
 
 # Start production
-yarn workspace @cabe-arena/backend start
+npm run start --workspace=backend
 
 # Or use cluster mode
-yarn workspace @cabe-arena/backend start:cluster
+npm run start:cluster --workspace=backend
 ```
 
 ### Frontend
 
 ```bash
 # Build
-yarn build:frontend
+npm run build:frontend
 
 # Serve static files
-yarn workspace @cabe-arena/frontend preview
+npm run preview --workspace=frontend
 ```
 
 ## 📦 Package Management
 
 This monorepo uses:
 
-- **Yarn Workspaces**: For package management and linking
-- **PNPM Lock**: For deterministic dependency resolution
-- **Pessimistic Mode**: For more reliable dependency versions
+- **npm Workspaces**: For package management and linking
+- **npm Lock**: For deterministic dependency resolution
+- **Workspace Management**: For reliable dependency versions
 
 ## 🤝 Contributing
 
@@ -247,7 +247,7 @@ This monorepo uses:
 2. Run tests before committing
 3. Ensure code passes linting
 4. Use TypeScript for all new code
-5. Run `yarn type-check` before submitting PRs
+5. Run `npm run type-check` before submitting PRs
 
 ## 📄 License
 

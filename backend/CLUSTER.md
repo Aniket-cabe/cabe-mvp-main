@@ -39,20 +39,20 @@ The logger (`utils/logger.ts`) provides:
 
 ```bash
 # Start in cluster mode
-yarn dev:cluster
+npm run dev:cluster
 
 # Or from root
-yarn dev:cluster
+npm run dev:cluster
 ```
 
 ### Production
 
 ```bash
 # Build first
-yarn build
+npm run build
 
 # Start in cluster mode
-yarn start:cluster
+npm run start:cluster
 ```
 
 ## Features

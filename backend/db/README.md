@@ -160,7 +160,7 @@ The CI/CD pipeline includes performance validation:
 
 ```bash
 # Run performance tests
-yarn test tests/db.indexes.spec.ts --testNamePattern="should complete.*within.*ms"
+npm run test tests/db.indexes.spec.ts --testNamePattern="should complete.*within.*ms"
 ```
 
 ## 🧪 Testing
@@ -169,13 +169,13 @@ yarn test tests/db.indexes.spec.ts --testNamePattern="should complete.*within.*m
 
 ```bash
 # Run all database tests
-yarn test tests/db.*
+npm run test tests/db.*
 
 # Run connection pool tests
-yarn test tests/db.pool.spec.ts
+npm run test tests/db.pool.spec.ts
 
 # Run index performance tests
-yarn test tests/db.indexes.spec.ts
+npm run test tests/db.indexes.spec.ts
 ```
 
 ### Test Coverage
