@@ -1,5 +1,0 @@
-[33m8098329[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Fix: add rimraf devDependency to backend for Render build
-[33ma5c1b13[m Fix: add rimraf devDependency to fix Render build
-[33m6d45904[m fix: cleaned up vercel.json for Vercel deployment - Removed conflicting functions property - Moved vercel.json to frontend only - Ensured correct Vite build setup - Confirmed compatibility with Render + Vercel
-[33m044f3ab[m Fix cross-platform build: replace PowerShell; add tsup fallback; resolve Vitest conflict; normalize scripts; update docs
-[33m797e16d[m docs: Add comprehensive testing suite summary document
