@@ -1,3 +1,76 @@
-run = "npm run start:replit"
-language = "nodejs"
-onBoot = "npm install && npm run build:backend"
+entrypoint = "backend/dist/index.js"
+modules = ["nodejs-20"]
+
+[nix]
+channel = "stable-23_05"
+
+[deployment]
+run = ["npm", "run", "start:replit"]
+deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+exposeLocalhost = false
+
+[gitHubImport]
+requiredFiles = [".replit", "replit.nix", "package.json", "backend/package.json"]
+
+[workflows.install]
+name = "Install Dependencies"
+mode = "sequential"
+
+  [[workflows.install.tasks]]
+  type = "install-packages"
+
+  [[workflows.install.tasks]]
+  type = "execute-shell-command"
+  command = "npm run build:backend"
+
+[workflows.build]
+name = "Build Application"
+mode = "sequential"
+
+  [[workflows.build.tasks]]
+  type = "execute-shell-command"
+  command = "npm run build"
+
+[workflows.test]
+name = "Run Tests"
+mode = "sequential"
+
+  [[workflows.test.tasks]]
+  type = "execute-shell-command"
+  command = "npm run test:backend"
+
+[workflows.dev]
+name = "Development Server"
+mode = "sequential"
+
+  [[workflows.dev.tasks]]
+  type = "run-workflow"
+  workflow = "install"
+
+  [[workflows.dev.tasks]]
+  type = "execute-shell-command"
+  command = "npm run dev:backend"
+
+[workflows.full-deploy]
+name = "Full Deployment Pipeline"
+mode = "sequential"
+
+  [[workflows.full-deploy.tasks]]
+  type = "run-workflow"
+  workflow = "install"
+
+  [[workflows.full-deploy.tasks]]
+  type = "run-workflow"
+  workflow = "test"
+
+  [[workflows.full-deploy.tasks]]
+  type = "run-workflow"
+  workflow = "build"
+
+  [[workflows.full-deploy.tasks]]
+  type = "execute-shell-command"
+  command = "curl -f http://localhost:5000/health || exit 1"
