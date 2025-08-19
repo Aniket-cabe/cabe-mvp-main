@@ -3,7 +3,6 @@
     pkgs.nodejs-20_x
     pkgs.nodePackages.typescript
     pkgs.nodePackages.pnpm
-    pkgs.yarn
     pkgs.python3
     pkgs.gcc
     pkgs.pkg-config
