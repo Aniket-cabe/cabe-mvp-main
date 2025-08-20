@@ -3,7 +3,7 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
   entry: ['src/cluster.ts', 'src/index.ts'],
   outDir: 'dist',
-  format: ['cjs'],
+  format: ['esm'],
   target: 'node20',
   clean: true,
   sourcemap: true,
@@ -12,10 +12,10 @@ export default defineConfig({
   minify: false,
   splitting: false,
   treeshake: true,
-  // Ensure proper file naming for Replit compatibility
+  // Ensure proper file naming for ESM compatibility
   outExtension({ format }) {
     return {
-      js: format === 'cjs' ? '.js' : '.mjs'
+      js: format === 'esm' ? '.js' : '.cjs'
     }
   },
   external: [
