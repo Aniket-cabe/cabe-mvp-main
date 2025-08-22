@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Cabe Arena Backend - Express API with TypeScript and cluster support",
   "main": "dist/index.js",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "dev": "tsx watch src/cluster.ts",
     "dev:cluster": "tsx src/cluster.ts",

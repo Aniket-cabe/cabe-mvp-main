@@ -1,20 +1,19 @@
-entrypoint = "backend/dist/index.js"
-modules = ["nodejs-20"]
+entrypoint = "."
+
+run = "npm install --no-fund --no-audit && npm run dev"
 
 [nix]
-channel = "stable-23_05"
-
-[deployment]
-run = ["npm", "run", "start:replit"]
-deploymentTarget = "cloudrun"
+channel = "stable-23_11"
 
 [[ports]]
 localPort = 5000
 externalPort = 80
-exposeLocalhost = false
 
 [gitHubImport]
-requiredFiles = [".replit", "replit.nix", "package.json", "backend/package.json"]
+requiredFiles = [".replit", "replit.nix", "package.json", "package-lock.json"]
+
+[deployment]
+run = ["bash", "-lc", "npm ci && npm run build && npm start"]
 
 [workflows.install]
 name = "Install Dependencies"
