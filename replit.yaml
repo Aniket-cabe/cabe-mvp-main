@@ -1,67 +1,11 @@
-# Replit Deployment Configuration for Cabe Arena
-# This file configures how Replit builds, installs, and runs the application
-
-# Run command for the application
+---
 run: npm run start:replit
-
-# Install dependencies
 install: npm install --no-fund --no-audit
-
-# Build the application (optional for simple server)
-build: echo "No build step required for simple server"
-
-# Health check configuration
-healthcheck:
-  # Check if the server is responding on the health endpoint
-  http: http://localhost:5000/health
-  # Timeout for health check (in seconds)
-  timeout: 30
-  # Interval between health checks (in seconds)
-  interval: 10
-
-# Environment variables (commented out - use Replit Secrets instead)
-# env:
-#   NODE_ENV: production
-#   PORT: 5000
-#   DATABASE_URL: your-database-url-here
-#   JWT_SECRET: your-jwt-secret-here
-#   SUPABASE_URL: your-supabase-url-here
-#   SUPABASE_SERVICE_ROLE_KEY: your-supabase-service-role-key-here
-#   SUPABASE_ANON_KEY: your-supabase-anon-key-here
-#   OPENAI_API_KEY: your-openai-api-key-here
-
-# Port configuration
-ports:
-  - 5000
-
-# Language and runtime configuration
-language: nodejs
-runtime: node20
-
-# Entry point
+build: npm run build
 entrypoint: server.js
+language: nodejs
+env:
+  # DATABASE_URL: "your-database-url"
+  # API_KEY: "your-api-key"
+---
 
-# Dependencies that need to be installed
-dependencies:
-  - nodejs
-  - npm
-
-# Build steps (optional - can be overridden by build command)
-buildSteps:
-  - npm install --no-fund --no-audit
-
-# Start steps
-startSteps:
-  - npm run start:replit
-
-# Health check endpoints to verify
-healthChecks:
-  - http://localhost:5000/health
-  - http://localhost:5000/healthz
-
-# Deployment configuration
-deployment:
-  # Use the start:replit script for deployment
-  run: npm run start:replit
-  # Install dependencies
-  install: npm install --no-fund --no-audit
