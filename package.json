@@ -46,7 +46,7 @@
     "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
     "start:backend": "npm run start --workspace=backend",
     "start:frontend": "npm run preview --workspace=frontend",
-    "start:replit": "npm run start:single --workspace=backend",
+    "start:replit": "node server.js",
     "install:all": "npm install && npm run build:backend"
   },
   "devDependencies": {

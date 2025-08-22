@@ -12,13 +12,13 @@ const envSchema = z.object({
   PORT: z.string().transform(Number).default('5000'),
 
   // Database
-  SUPABASE_URL: z.string().url(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
-  SUPABASE_ANON_KEY: z.string().min(1),
+  SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  SUPABASE_ANON_KEY: z.string().min(1).optional(),
   DB_POOL_SIZE: z.string().transform(Number).default('10'),
 
   // AI Services
-  OPENAI_API_KEY: z.string().min(1),
+  OPENAI_API_KEY: z.string().min(1).optional(),
   OPENAI_MODEL: z.string().default('gpt-4'),
   OPENROUTER_API_KEY: z.string().optional(),
 
@@ -28,7 +28,7 @@ const envSchema = z.object({
   AIRTABLE_TABLE_NAME: z.string().optional(),
 
   // Security
-  JWT_SECRET: z.string().min(32),
+  JWT_SECRET: z.string().min(32).optional(),
   JWT_EXPIRES_IN: z.string().default('7d'),
 
   // Redis
