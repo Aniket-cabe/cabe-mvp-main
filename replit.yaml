@@ -2,6 +2,10 @@
 run: npm run start:replit
 install: npm install --no-fund --no-audit
 build: npm run build
+healthcheck:
+  url: http://localhost:5000/health
+  interval: 10
+  timeout: 5
 entrypoint: server.js
 language: nodejs
 env:
