@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import verifyRequestSignature from '../middleware/request-signing';
 import { rateLimitMiddleware } from '../middleware/security';
 

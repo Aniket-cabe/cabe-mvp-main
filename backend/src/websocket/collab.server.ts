@@ -1,5 +1,5 @@
 import { WebSocket, WebSocketServer } from 'ws';
-import jwt from 'jsonwebtoken';
+import jsonwebtoken, { verify, sign } from 'jsonwebtoken';
 import logger from '../utils/logger';
 
 interface CollaborationUser {
@@ -106,7 +106,7 @@ class CollaborationServer {
     token: string
   ): Promise<{ id: string; username: string } | null> {
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      const decoded = verify(token, process.env.JWT_SECRET!) as any;
       return { id: decoded.userId, username: decoded.username };
     } catch (error) {
       return null;

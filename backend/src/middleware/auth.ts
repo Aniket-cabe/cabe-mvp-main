@@ -1,5 +1,5 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import express, { Request, Response, NextFunction } from 'express';
+import jsonwebtoken, { verify, sign } from 'jsonwebtoken';
 import { supabaseAdmin } from '../lib/supabase-admin';
 import logger from '../utils/logger';
 import { env } from '../config/env';
@@ -48,7 +48,7 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
 
   try {
     // Verify JWT token
-    const decoded = jwt.verify(token, env.JWT_SECRET) as any;
+    const decoded = verify(token, env.JWT_SECRET) as any;
     
     if (!decoded.userId || !decoded.email) {
       throw new Error('Invalid token payload');
@@ -128,7 +128,7 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
       });
 
   } catch (error) {
-    if (error instanceof jwt.JsonWebTokenError) {
+    if (error instanceof jsonwebtoken.JsonWebTokenError) {
       logger.warn('❌ Authentication failed - invalid token', {
         error: error.message,
         ip: req.ip,
@@ -171,7 +171,7 @@ export function optionalAuth(req: Request, res: Response, next: NextFunction): v
 
   try {
     // Verify JWT token
-    const decoded = jwt.verify(token, env.JWT_SECRET) as any;
+    const decoded = verify(token, env.JWT_SECRET) as any;
     
     if (!decoded.userId || !decoded.email) {
       // Invalid token, continue without authentication

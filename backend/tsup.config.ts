@@ -18,6 +18,13 @@ export default defineConfig({
       js: format === 'cjs' ? '.js' : '.mjs'
     }
   },
+  // Handle CommonJS packages properly for ESM compilation
+  noExternal: [],
+  // Ensure proper handling of CommonJS packages
+  esbuildOptions(options) {
+    options.mainFields = ['main', 'module'];
+    options.conditions = ['node', 'import', 'require'];
+  },
   external: [
     // External dependencies that shouldn't be bundled
     'express',

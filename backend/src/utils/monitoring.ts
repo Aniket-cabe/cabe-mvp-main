@@ -1,4 +1,4 @@
-import { Registry, Counter, Histogram, Gauge } from 'prom-client';
+import promClient, { Registry, Counter, Histogram, Gauge } from 'prom-client';
 import logger from './logger';
 
 // Create a custom registry

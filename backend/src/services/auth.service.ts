@@ -1,5 +1,5 @@
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import bcryptjs, { hash, compare } from 'bcryptjs';
+import jsonwebtoken, { verify, sign } from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { executeWithRetry } from '../../db';
@@ -105,7 +105,7 @@ class AuthService {
     }
 
     // Hash password
-    const passwordHash = await bcrypt.hash(password, this.SALT_ROUNDS);
+    const passwordHash = await hash(password, this.SALT_ROUNDS);
 
     // Create user
     const userId = uuidv4();
@@ -170,7 +170,7 @@ class AuthService {
     });
 
     // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    const isValidPassword = await compare(password, user.password_hash);
     if (!isValidPassword) {
       throw new Error('Invalid email or password');
     }
@@ -241,7 +241,7 @@ class AuthService {
     }
 
     // Hash new password
-    const passwordHash = await bcrypt.hash(newPassword, this.SALT_ROUNDS);
+    const passwordHash = await hash(newPassword, this.SALT_ROUNDS);
 
     // Update user password
     await executeWithRetry(async (client) => {
@@ -413,7 +413,7 @@ class AuthService {
    */
   verifyToken(token: string): { userId: string; email: string } {
     try {
-      const decoded = jwt.verify(token, env.JWT_SECRET) as {
+      const decoded = verify(token, env.JWT_SECRET) as {
         userId: string;
         email: string;
       };
@@ -486,7 +486,7 @@ class AuthService {
     }
 
     // Verify current password
-    const isValidPassword = await bcrypt.compare(
+    const isValidPassword = await compare(
       currentPassword,
       user.password_hash
     );
@@ -495,7 +495,7 @@ class AuthService {
     }
 
     // Hash new password
-    const passwordHash = await bcrypt.hash(newPassword, this.SALT_ROUNDS);
+    const passwordHash = await hash(newPassword, this.SALT_ROUNDS);
 
     // Update password
     await executeWithRetry(async (client) => {
@@ -531,7 +531,7 @@ class AuthService {
       throw new Error('User not found');
     }
 
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    const isValidPassword = await compare(password, user.password_hash);
     if (!isValidPassword) {
       throw new Error('Password is incorrect');
     }
@@ -550,7 +550,7 @@ class AuthService {
    * Generate JWT token
    */
   private generateToken(userId: string): string {
-    return jwt.sign({ userId }, env.JWT_SECRET, {
+    return sign({ userId }, env.JWT_SECRET, {
       expiresIn: this.TOKEN_EXPIRY,
     });
   }

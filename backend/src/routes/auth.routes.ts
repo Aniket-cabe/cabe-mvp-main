@@ -1,7 +1,7 @@
-import { Router, Request, Response } from 'express';
+import express, { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import bcryptjs, { hash, compare } from 'bcryptjs';
+import jsonwebtoken, { verify, sign } from 'jsonwebtoken';
 import { supabaseAdmin } from '../lib/supabase-admin';
 import { env } from '../config/env';
 import logger from '../utils/logger';
@@ -94,7 +94,7 @@ async function verifyGoogleToken(idToken: string): Promise<any> {
  * Create JWT token
  */
 function createJWTToken(userId: string, email: string): string {
-  return jwt.sign(
+      return sign(
     { userId, email },
     env.JWT_SECRET,
     { expiresIn: env.JWT_EXPIRES_IN as any }
@@ -166,7 +166,7 @@ router.post('/register', authLimiter, async (req: Request, res: Response) => {
     }
 
     // Hash password
-    const passwordHash = await bcrypt.hash(validatedData.password, 12);
+    const passwordHash = await hash(validatedData.password, 12);
     
     // Generate referral code
     const referralCode = generateReferralCode();
@@ -289,7 +289,7 @@ router.post('/login', authLimiter, async (req: Request, res: Response) => {
     }
 
     // Verify password
-    const isValidPassword = await bcrypt.compare(validatedData.password, user.password_hash);
+    const isValidPassword = await compare(validatedData.password, user.password_hash);
     if (!isValidPassword) {
       return res.status(401).json({
         success: false,
@@ -543,7 +543,7 @@ router.post('/forgot-password', authLimiter, async (req: Request, res: Response)
     }
 
     // Generate reset token (in production, use a proper token generation library)
-    const resetToken = jwt.sign(
+    const resetToken = sign(
       { userId: user.id, type: 'password_reset' },
       env.JWT_SECRET,
       { expiresIn: '1h' }
@@ -589,7 +589,7 @@ router.post('/reset-password', authLimiter, async (req: Request, res: Response) 
     // Verify reset token
     let payload: any;
     try {
-      payload = jwt.verify(validatedData.token, env.JWT_SECRET);
+      payload = verify(validatedData.token, env.JWT_SECRET);
     } catch (jwtError) {
       return res.status(400).json({
         success: false,
@@ -607,7 +607,7 @@ router.post('/reset-password', authLimiter, async (req: Request, res: Response) 
     }
 
     // Hash new password
-    const passwordHash = await bcrypt.hash(validatedData.password, 12);
+    const passwordHash = await hash(validatedData.password, 12);
 
     // Update user password
     const { error: updateError } = await supabaseAdmin
@@ -666,7 +666,7 @@ router.post('/verify-email', authLimiter, async (req: Request, res: Response) =>
     // Verify email token
     let payload: any;
     try {
-      payload = jwt.verify(token, env.JWT_SECRET);
+      payload = verify(token, env.JWT_SECRET);
     } catch (jwtError) {
       return res.status(400).json({
         success: false,

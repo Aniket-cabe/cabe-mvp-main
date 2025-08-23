@@ -1,6 +1,6 @@
 import express from 'express';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import bcryptjs, { hash, compare } from 'bcryptjs';
+import jsonwebtoken, { verify, sign } from 'jsonwebtoken';
 import { z } from 'zod';
 import { supabaseAdmin } from '../lib/supabase-admin';
 import logger from '../utils/logger';
@@ -110,7 +110,7 @@ router.post('/register', rateLimitMiddleware, async (req, res) => {
 
     // Hash password
     const saltRounds = 12;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
+    const passwordHash = await hash(password, saltRounds);
 
     // Generate referral code
     const userReferralCode = generateReferralCode();
@@ -155,7 +155,7 @@ router.post('/register', rateLimitMiddleware, async (req, res) => {
     }
 
     // Generate verification token
-    const verificationToken = jwt.sign(
+    const verificationToken = sign(
       { userId: newUser.id, email: newUser.email, type: 'email_verification' },
       env.JWT_SECRET,
       { expiresIn: '24h' }
@@ -245,7 +245,7 @@ router.post('/login', rateLimitMiddleware, async (req, res) => {
     }
 
     // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    const isPasswordValid = await compare(password, user.password_hash);
     if (!isPasswordValid) {
       logger.warn('❌ Login failed - invalid password', { email });
       return res.status(401).json({
@@ -343,7 +343,7 @@ router.post('/refresh', async (req, res) => {
     }
 
     // Verify current token
-    const decoded = jwt.verify(token, env.JWT_SECRET) as any;
+    const decoded = verify(token, env.JWT_SECRET) as any;
     
     // Check if user still exists
     const { data: user, error: userError } = await supabaseAdmin
@@ -381,7 +381,7 @@ router.post('/refresh', async (req, res) => {
     });
 
   } catch (error) {
-    if (error instanceof jwt.JsonWebTokenError) {
+    if (error instanceof jsonwebtoken.JsonWebTokenError) {
       return res.status(401).json({
         success: false,
         error: 'Invalid token',
@@ -425,7 +425,7 @@ router.post('/forgot-password', rateLimitMiddleware, async (req, res) => {
     }
 
     // Generate reset token
-    const resetToken = jwt.sign(
+    const resetToken = sign(
       { userId: user.id, email: user.email, type: 'password_reset' },
       env.JWT_SECRET,
       { expiresIn: '1h' }
@@ -472,7 +472,7 @@ router.post('/reset-password', async (req, res) => {
     logger.info('🔑 Password reset attempt');
 
     // Verify reset token
-    const decoded = jwt.verify(token, env.JWT_SECRET) as any;
+    const decoded = verify(token, env.JWT_SECRET) as any;
     
     if (decoded.type !== 'password_reset') {
       return res.status(400).json({
@@ -484,7 +484,7 @@ router.post('/reset-password', async (req, res) => {
 
     // Hash new password
     const saltRounds = 12;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
+    const passwordHash = await hash(password, saltRounds);
 
     // Update user password
     const { error: updateError } = await supabaseAdmin
@@ -510,7 +510,7 @@ router.post('/reset-password', async (req, res) => {
     });
 
   } catch (error) {
-    if (error instanceof jwt.JsonWebTokenError) {
+    if (error instanceof jsonwebtoken.JsonWebTokenError) {
       return res.status(400).json({
         success: false,
         error: 'Invalid or expired token',
@@ -547,7 +547,7 @@ router.post('/verify-email', async (req, res) => {
     logger.info('📧 Email verification attempt');
 
     // Verify email token
-    const decoded = jwt.verify(token, env.JWT_SECRET) as any;
+    const decoded = verify(token, env.JWT_SECRET) as any;
     
     if (decoded.type !== 'email_verification') {
       return res.status(400).json({
@@ -584,7 +584,7 @@ router.post('/verify-email', async (req, res) => {
     });
 
   } catch (error) {
-    if (error instanceof jwt.JsonWebTokenError) {
+    if (error instanceof jsonwebtoken.JsonWebTokenError) {
       return res.status(400).json({
         success: false,
         error: 'Invalid or expired token',

@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import { executeWithRetry } from '../db';
 import logger from '../utils/logger';
 

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { z } from 'zod';
 import { executeWithRetry } from '../../db';
 import logger from '../utils/logger';

@@ -4,7 +4,7 @@ import compression from 'compression';
 import 'express-async-errors';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
-import { promClient } from 'prom-client';
+import promClient from 'prom-client';
 import statusMonitor from 'express-status-monitor';
 import { ssoRoutes } from './routes/sso.routes';
 

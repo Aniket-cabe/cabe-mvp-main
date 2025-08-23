@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 import { URL } from 'url';
-import jwt from 'jsonwebtoken';
+import jsonwebtoken, { verify, sign } from 'jsonwebtoken';
 import { env } from '../config/env';
 import logger from '../utils/logger';
 
@@ -78,7 +78,7 @@ class WebSocketManager {
       }
 
       // Verify JWT token
-      const decoded = jwt.verify(token, env.JWT_SECRET) as { userId: string };
+      const decoded = verify(token, env.JWT_SECRET) as { userId: string };
       ws.userId = decoded.userId;
       ws.isAuthenticated = true;
       ws.room = `user:${decoded.userId}`;

@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { Request, Response, NextFunction } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import logger from '../utils/logger';
 
 const DEFAULT_TTL_MS = 5 * 60 * 1000; // 5 minutes

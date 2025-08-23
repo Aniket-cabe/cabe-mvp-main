@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import slowDown from 'express-slow-down';
 import { RateLimiterMemory, RateLimiterRedis } from 'rate-limiter-flexible';
@@ -9,7 +9,7 @@ import xss from 'xss-clean';
 import mongoSanitize from 'express-mongo-sanitize';
 import logger from '../utils/logger';
 import { security } from '../config/env';
-import jwt from 'jsonwebtoken';
+import jsonwebtoken, { verify, sign } from 'jsonwebtoken';
 
 // Enhanced rate limiter configuration
 const rateLimiter = new RateLimiterMemory({
@@ -342,7 +342,7 @@ export const authenticateToken = (
   }
 
   try {
-    const decoded = jwt.verify(token, security.jwtSecret) as any;
+    const decoded = verify(token, security.jwtSecret) as any;
     const userId = decoded.userId || decoded.sub || decoded.id;
     if (!userId) {
       throw new Error('Invalid token payload');
