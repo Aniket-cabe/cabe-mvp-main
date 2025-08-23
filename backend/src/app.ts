@@ -7,6 +7,8 @@ import swaggerUi from 'swagger-ui-express';
 import promClient from 'prom-client';
 import statusMonitor from 'express-status-monitor';
 import { ssoRoutes } from './routes/sso.routes';
+import { connectToDatabase, setupDatabaseGracefulShutdown } from './config/database';
+import mongodbTestRoutes from './routes/mongodb-test';
 
 // Import middleware
 import {
@@ -352,6 +354,7 @@ app.use('/api/uploads', uploadsRouter);
 app.use('/api/metrics', metricsRealtimeRouter);
 app.use('/api/integrations', integrationsRouter);
 app.use('/api/auth', ssoRoutes);
+app.use('/api/mongodb', mongodbTestRoutes);
 app.use('/api/auth', authRouter);
 app.use('/api/tasks', tasksRouter);
 app.use('/api/points', pointsRouter);
@@ -501,24 +504,50 @@ async function checkExternalServices(): Promise<boolean> {
 }
 
 // ============================================================================
+// DATABASE INITIALIZATION
+// ============================================================================
+
+// Initialize database connection
+export const initializeDatabase = async (): Promise<void> => {
+  try {
+    await connectToDatabase();
+    setupDatabaseGracefulShutdown();
+    logger.info('✅ Database initialized successfully');
+  } catch (error) {
+    logger.error('❌ Database initialization failed:', error);
+    throw error;
+  }
+};
+
+// ============================================================================
 // DEVELOPMENT HELPERS
 // ============================================================================
 
 if (isDevelopment) {
   // Development-only endpoints
-  app.get('/api/dev/test-supabase', async (req, res) => {
+  app.get('/api/dev/test-mongodb', async (req, res) => {
     try {
-      // TODO: Implement Supabase connection test
+      const mongoose = require('mongoose');
+      const dbState = mongoose.connection.readyState;
+      const states = {
+        0: 'disconnected',
+        1: 'connected',
+        2: 'connecting',
+        3: 'disconnecting'
+      };
+      
       res.json({
-        message: 'Supabase connection test endpoint',
+        message: 'MongoDB connection test endpoint',
+        status: states[dbState as keyof typeof states] || 'unknown',
         timestamp: new Date().toISOString(),
+        readyState: dbState
       });
     } catch (error) {
-      logger.error('Supabase test failed', {
+      logger.error('MongoDB test failed', {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       res.status(500).json({
-        error: 'Supabase test failed',
+        error: 'MongoDB test failed',
         message: error instanceof Error ? error.message : 'Unknown error',
       });
     }
