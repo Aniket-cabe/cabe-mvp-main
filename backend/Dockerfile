@@ -1,34 +1,39 @@
 # syntax=docker/dockerfile:1
 
-# -------- Builder stage --------
+# Stage 1: Builder
 FROM node:22-alpine AS builder
+
 WORKDIR /app
 
-# Install dependencies
-COPY package.json ./
-RUN npm install
+# Copy root package files first
+COPY package.json yarn.lock ./
+COPY backend/package.json backend/
+COPY shared/eslint-config/package.json shared/eslint-config/
+COPY shared/ts-config-base/package.json shared/ts-config-base/
 
-# Copy source
+# Install root dependencies
+RUN yarn install --frozen-lockfile
+
+# Copy source code
 COPY . .
 
-# Build TypeScript → dist
-RUN npm run build
+# Build the backend application
+WORKDIR /app/backend
+RUN yarn build
 
-# -------- Runtime stage --------
-FROM node:22-alpine AS runtime
-WORKDIR /app
-ENV NODE_ENV=production
+# Stage 2: Production
+FROM node:22-alpine
 
-# Copy only what we need to run
-COPY --from=builder /app/dist ./dist
-COPY package.json ./
+WORKDIR /app/backend
 
-# Install production deps only
-RUN npm install --omit=dev
+# Copy only production dependencies and built app
+COPY --from=builder /app/backend/node_modules ./node_modules
+COPY --from=builder /app/backend/dist ./dist
+COPY --from=builder /app/backend/package.json ./package.json
+COPY --from=builder /app/scripts/validate-env.js ../scripts/validate-env.js
 
-# Railway provides PORT
-ENV PORT=3001
+# Expose the port Railway will assign
 EXPOSE 3001
 
-# Start the server
+# Command to run the application
 CMD ["node", "dist/index.js"]
