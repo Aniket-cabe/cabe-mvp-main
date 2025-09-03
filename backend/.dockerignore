@@ -1,4 +1,4 @@
-# Dependencies
+# Dependencies (but keep Yarn PnP files)
 node_modules
 npm-debug.log*
 yarn-debug.log*
@@ -45,3 +45,8 @@ logs/
 # Temporary files
 tmp/
 temp/
+
+# Keep Yarn PnP files (don't ignore these)
+!.yarn
+!.pnp.cjs
+!.pnp.loader.mjs

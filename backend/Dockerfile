@@ -5,14 +5,19 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy root package files first
-COPY package.json yarn.lock ./
+# Copy root package files first (without yarn.lock since this is PnP)
+COPY package.json ./
 COPY backend/package.json backend/
 COPY shared/eslint-config/package.json shared/eslint-config/
 COPY shared/ts-config-base/package.json shared/ts-config-base/
 
-# Install root dependencies
-RUN yarn install --frozen-lockfile
+# Copy Yarn PnP files
+COPY .yarn .yarn
+COPY .pnp.cjs .pnp.cjs
+COPY .pnp.loader.mjs .pnp.loader.mjs
+
+# Install dependencies using Yarn PnP
+RUN yarn install --immutable
 
 # Copy source code
 COPY . .
