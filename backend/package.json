@@ -8,7 +8,7 @@
     "dev": "tsx watch src/cluster.ts",
     "dev:cluster": "tsx src/cluster.ts",
     "build": "tsup --clean",
-    "start": "node scripts/validate-env.js && node dist/index.js",
+    "start": "node dist/index.js",
     "start:single": "node dist/index.js",
     "render-build": "yarn install && yarn build",
     "render-start": "yarn start",

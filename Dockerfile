@@ -39,6 +39,9 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Install curl for health checks
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 # Copy built backend and dependencies
 COPY --from=builder /app/backend/dist ./dist
 COPY --from=builder /app/backend/package.json ./package.json
@@ -49,12 +52,12 @@ COPY --from=builder /app/node_modules ./node_modules
 EXPOSE 3000
 ENV PORT=3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+# Health check with proper curl command
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
   CMD curl -f http://localhost:$PORT/health || exit 1
 
-# Start backend service
-CMD ["yarn", "start:backend"]
+# Start backend service with proper command
+CMD ["node", "dist/index.js"]
 
 # Stage 3: Frontend Runtime
 FROM nginx:alpine AS frontend-runtime
