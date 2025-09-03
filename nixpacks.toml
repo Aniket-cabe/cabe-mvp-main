@@ -1,0 +1,19 @@
+[phases.setup]
+nix_pkgs = ["nodejs-22_x", "yarn"]
+
+[phases.install]
+cmds = ["yarn install --frozen-lockfile"]
+
+[phases.build]
+cmds = ["yarn build"]
+
+[phases.start]
+cmd = "yarn start:backend"
+
+# Frontend service override
+[start]
+cmd = "yarn start:frontend"
+
+# Backend service override  
+[start]
+cmd = "yarn start:backend"

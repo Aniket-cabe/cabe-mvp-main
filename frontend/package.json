@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build --outDir dist --sourcemap false",
-    "preview": "vite preview --port 3000",
-    "vercel-build": "npm run build",
-    "railway-build": "npm run build",
+    "preview": "vite preview --port $PORT --host 0.0.0.0",
+    "vercel-build": "yarn build",
+    "railway-build": "yarn build",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
@@ -17,13 +17,13 @@
     "test:integration": "vitest --config vitest.integration.config.ts",
     "test:e2e": "cypress run",
     "test:e2e:open": "cypress open",
-    "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
+    "test:all": "yarn test:unit && yarn test:integration && yarn test:e2e",
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist node_modules",
     "analyze": "vite-bundle-analyzer",
-    "audit": "npm audit --audit-level=moderate",
+    "audit": "yarn audit --audit-level moderate",
     "lighthouse": "lighthouse http://localhost:5173 --output=json --output-path=./lighthouse-report.json",
     "format": "prettier --write src/**/*.{ts,tsx,js,jsx,json,css,md}",
     "format:check": "prettier --check src/**/*.{ts,tsx,js,jsx,json,css,md}",
@@ -87,7 +87,7 @@
     "vitest": "1.6.1"
   },
   "engines": {
-    "node": ">=18 <23"
+    "node": ">=18 <=22"
   },
-  "packageManager": "npm@>=10"
+  "packageManager": "yarn@1.22.22"
 }

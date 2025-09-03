@@ -10,9 +10,9 @@
     "build": "tsup --clean",
     "start": "node scripts/validate-env.js && node dist/index.js",
     "start:single": "node dist/index.js",
-    "render-build": "npm install && npm run build",
-    "render-start": "npm start",
-    "railway-build": "bash ../scripts/railway-build.sh",
+    "render-build": "yarn install && yarn build",
+    "render-start": "yarn start",
+    "railway-build": "yarn build",
     "db:push": "echo Skipping prisma db push; using existing DB layer",
     "test": "vitest",
     "test:watch": "vitest --watch",
@@ -22,7 +22,7 @@
     "test:integration": "vitest --config vitest.integration.config.ts",
     "test:security": "vitest --config vitest.security.config.ts",
     "test:performance": "vitest --config vitest.performance.config.ts",
-    "test:all": "npm run test:unit && npm run test:integration && npm run test:security && npm run test:performance",
+    "test:all": "yarn test:unit && yarn test:integration && yarn test:security && yarn test:performance",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "audit:nightly": "tsx scripts/run-nightly-arena-audit.ts",
@@ -31,8 +31,8 @@
     "metrics:test": "tsx scripts/test-audit-metrics.ts",
     "export:test": "tsx scripts/test-audit-export.ts",
     "type-check": "tsc --noEmit",
-    "security:audit": "npm audit --audit-level=moderate",
-    "security:fix": "npm audit fix",
+    "security:audit": "yarn audit --audit-level moderate",
+    "security:fix": "yarn audit fix",
     "db:migrate": "tsx scripts/migrate-database.ts",
     "db:seed": "tsx scripts/seed-database.ts",
     "format": "prettier --write src/**/*.{ts,js,json,md}",
@@ -123,6 +123,7 @@
     "vitest": "^1.0.0"
   },
   "engines": {
-    "node": ">=18 <23"
-  }
+    "node": ">=18 <=22"
+  },
+  "packageManager": "yarn@1.22.22"
 }

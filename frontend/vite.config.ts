@@ -73,7 +73,7 @@ export default defineConfig({
   ],
   server: {
     port: 3000,
-    host: '0.0.0.0',
+    host: true,
     strictPort: true,
     proxy: {
       '/api': {
@@ -84,7 +84,7 @@ export default defineConfig({
     },
   },
   preview: {
-    port: 3000,
+    port: process.env.PORT || 3000,
     host: '0.0.0.0',
     strictPort: true,
   },
@@ -102,7 +102,7 @@ export default defineConfig({
           charts: ['recharts'],
           forms: ['react-hook-form', '@hookform/resolvers'],
         },
-        // Optimize chunk naming for Vercel
+        // Optimize chunk naming for Railway
         chunkFileNames: (chunkInfo) => {
           const facadeModuleId = chunkInfo.facadeModuleId
             ? chunkInfo.facadeModuleId.split('/').pop()
@@ -123,7 +123,7 @@ export default defineConfig({
         },
       },
     },
-    // Vercel-specific optimizations
+    // Railway-specific optimizations
     chunkSizeWarningLimit: 1000,
     reportCompressedSize: false,
   },
@@ -149,4 +149,8 @@ export default defineConfig({
     'process.env.VITE_API_BASE_URL': JSON.stringify(process.env.VITE_API_BASE_URL),
     __VITE_APP_VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0'),
   },
+  // Railway compatibility
+  resolve: {
+    preserveSymlinks: true
+  }
 });
