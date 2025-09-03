@@ -24,13 +24,13 @@ RUN yarn build
 # Stage 2: Production
 FROM node:22-alpine
 
-WORKDIR /app/backend
+WORKDIR /app
 
 # Copy only production dependencies and built app
 COPY --from=builder /app/backend/node_modules ./node_modules
 COPY --from=builder /app/backend/dist ./dist
 COPY --from=builder /app/backend/package.json ./package.json
-COPY --from=builder /app/scripts/validate-env.js ../scripts/validate-env.js
+COPY --from=builder /app/scripts/validate-env.js ./scripts/validate-env.js
 
 # Expose the port Railway will assign
 EXPOSE 3001
