@@ -5,6 +5,7 @@ import logger from '../utils/logger';
 // MongoDB connection options for different environments
 const getMongoOptions = () => {
   const isProduction = env.NODE_ENV === 'production';
+  const isRender = process.env.RENDER || process.env.RENDER_EXTERNAL_URL;
   const isReplit = process.env.REPL_ID || process.env.REPL_SLUG;
   
   const baseOptions = {
@@ -28,7 +29,7 @@ const getMongoOptions = () => {
     retryReads: true,
     
     // SSL/TLS settings
-    ssl: isProduction || isReplit,
+    ssl: isProduction || isRender || isReplit,
     sslValidate: false, // Set to true in production with proper certificates
     
     // Buffer settings
@@ -40,6 +41,14 @@ const getMongoOptions = () => {
     
     // Logging
     loggerLevel: isProduction ? 'error' : 'info',
+    
+    // Render-specific optimizations
+    ...(isRender && {
+      // Optimize for Render's free tier limitations
+      maxPoolSize: 5, // Reduce pool size for Render free tier
+      serverSelectionTimeoutMS: 10000, // Increase timeout for Render
+      socketTimeoutMS: 60000, // Increase socket timeout
+    }),
   };
 
   return baseOptions;

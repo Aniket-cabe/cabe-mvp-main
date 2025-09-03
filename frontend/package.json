@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
+    "build": "vite build --outDir dist --sourcemap false",
+    "preview": "vite preview --port 3000",
+    "vercel-build": "npm run build",
+    "railway-build": "npm run build",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
@@ -85,7 +87,7 @@
     "vitest": "1.6.1"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=18 <23"
   },
   "packageManager": "npm@>=10"
 }

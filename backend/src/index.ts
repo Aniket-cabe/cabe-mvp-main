@@ -42,26 +42,3 @@ const startServer = async () => {
 };
 
 startServer();
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info(
-    `Worker ${process.pid} received SIGTERM, shutting down gracefully`
-  );
-  server.close(() => {
-    logger.info(`Worker ${process.pid} terminated`);
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  logger.info(
-    `Worker ${process.pid} received SIGINT, shutting down gracefully`
-  );
-  server.close(() => {
-    logger.info(`Worker ${process.pid} terminated`);
-    process.exit(0);
-  });
-});
-
-export default server;

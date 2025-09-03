@@ -129,7 +129,7 @@ export const database = {
   supabaseUrl: env.SUPABASE_URL,
   supabaseServiceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
   supabaseAnonKey: env.SUPABASE_ANON_KEY,
-  poolSize: env.DB_POOL_SIZE,
+  maxPoolSize: env.DB_POOL_SIZE,
 } as const;
 
 // AI config

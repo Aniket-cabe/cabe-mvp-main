@@ -243,8 +243,15 @@ app.use((req, res, next) => {
 // 2. Helmet security headers
 app.use(helmetConfig);
 
-// 3. CORS configuration
-app.use(cors(corsOptions));
+// 3. CORS configuration (Railway-ready)
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-API-Key', 'X-CSRF-Token'],
+  })
+);
 
 // 4. Compression
 app.use(compression());
@@ -429,16 +436,27 @@ process.on('SIGINT', () => {
 
 async function checkDatabaseHealth(): Promise<boolean> {
   try {
-    // Test database connection by executing a simple query
-    const { data, error } = await supabaseAdmin
-      .from('users')
-      .select('count')
-      .limit(1);
+    // Test MongoDB connection by checking the connection state
+    const mongoose = require('mongoose');
+    const dbState = mongoose.connection.readyState;
+    const states = {
+      0: 'disconnected',
+      1: 'connected',
+      2: 'connecting',
+      3: 'disconnecting'
+    };
     
-    if (error) {
-      logger.error('Database health check failed', { error });
+    if (dbState !== 1) {
+      logger.error('Database health check failed: MongoDB not connected', { 
+        state: states[dbState as keyof typeof states] || 'unknown',
+        readyState: dbState 
+      });
       return false;
     }
+    
+    // Test with a simple operation
+    const adminDb = mongoose.connection.db.admin();
+    await adminDb.ping();
     
     return true;
   } catch (error) {

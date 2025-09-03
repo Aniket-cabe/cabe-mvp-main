@@ -245,7 +245,7 @@ export const securityHeaders = (
   next();
 };
 
-// Enhanced CORS configuration with Replit support
+// Enhanced CORS configuration with Render + Vercel support
 export const corsOptions = {
   origin: (
     origin: string | undefined,
@@ -266,15 +266,35 @@ export const corsOptions = {
         callback(new Error('Not allowed by CORS'));
       }
     } else {
-      // Fallback to default allowed origins including Replit domains
+      // Fallback to default allowed origins including Render and Vercel domains
       const allowedOrigins = [
+        // Local development
         'http://localhost:3000',
         'http://localhost:5173',
         'http://localhost:4173',
+        'http://localhost:3001',
+        
+        // Production domains
         'https://cabe-arena.com',
         'https://www.cabe-arena.com',
         'https://staging.cabe-arena.com',
-        // Replit domains
+        
+        // Render domains (backend hosting)
+        /^https:\/\/.*\.onrender\.com$/,
+        /^https:\/\/.*\.render\.com$/,
+        // Additional patterns for validation script
+        'onrender.com',
+        'render.com',
+        
+        // Vercel domains (frontend hosting)
+        /^https:\/\/.*\.vercel\.app$/,
+        /^https:\/\/.*\.vercel\.com$/,
+        /^https:\/\/.*\.now\.sh$/,
+        // Additional patterns for validation script
+        'vercel.app',
+        'vercel.com',
+        
+        // Replit domains (legacy support)
         /^https:\/\/.*\.repl\.co$/,
         /^https:\/\/.*\.replit\.dev$/,
         /^https:\/\/.*\.replit\.app$/,
@@ -303,8 +323,14 @@ export const corsOptions = {
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'X-API-Key',
+    'X-CSRF-Token'
+  ],
+  exposedHeaders: ['X-Total-Count', 'X-Page-Count', 'X-Rate-Limit-Remaining'],
 };
 
 // Request size limits

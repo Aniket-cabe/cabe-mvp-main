@@ -72,28 +72,60 @@ export default defineConfig({
     }),
   ],
   server: {
-    port: 5173,
+    port: 3000,
     host: '0.0.0.0',
     strictPort: true,
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_BASE_URL || 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   preview: {
-    port: 5000,
+    port: 3000,
     host: '0.0.0.0',
     strictPort: true,
   },
   build: {
     target: 'esnext',
     outDir: 'dist',
-    sourcemap: true,
+    sourcemap: process.env.NODE_ENV === 'development',
+    minify: 'terser',
     rollupOptions: {
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],
           router: ['react-router-dom'],
-          ui: ['@heroicons/react'],
+          ui: ['@heroicons/react', 'framer-motion'],
+          charts: ['recharts'],
+          forms: ['react-hook-form', '@hookform/resolvers'],
+        },
+        // Optimize chunk naming for Vercel
+        chunkFileNames: (chunkInfo) => {
+          const facadeModuleId = chunkInfo.facadeModuleId
+            ? chunkInfo.facadeModuleId.split('/').pop()
+            : 'chunk';
+          return `js/[name]-[hash].js`;
+        },
+        entryFileNames: 'js/[name]-[hash].js',
+        assetFileNames: (assetInfo) => {
+          const info = assetInfo.name.split('.');
+          const ext = info[info.length - 1];
+          if (/\.(css)$/.test(assetInfo.name)) {
+            return `css/[name]-[hash].${ext}`;
+          }
+          if (/\.(png|jpe?g|svg|gif|tiff|bmp|ico)$/i.test(assetInfo.name)) {
+            return `images/[name]-[hash].${ext}`;
+          }
+          return `assets/[name]-[hash].${ext}`;
         },
       },
     },
+    // Vercel-specific optimizations
+    chunkSizeWarningLimit: 1000,
+    reportCompressedSize: false,
   },
   css: {
     postcss: {
@@ -101,6 +133,20 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom'],
+    include: [
+      'react', 
+      'react-dom', 
+      'react-router-dom',
+      '@heroicons/react',
+      'framer-motion',
+      'recharts',
+      'react-hook-form',
+      '@hookform/resolvers'
+    ],
+  },
+  // Railway-specific configuration
+  define: {
+    'process.env.VITE_API_BASE_URL': JSON.stringify(process.env.VITE_API_BASE_URL),
+    __VITE_APP_VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0'),
   },
 });
