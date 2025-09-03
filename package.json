@@ -9,11 +9,11 @@
     "shared/*"
   ],
   "scripts": {
-    "build:frontend": "yarn workspace frontend build",
-    "build:backend": "yarn workspace backend build",
-    "build": "yarn build:backend && yarn build:frontend",
-    "start:backend": "yarn workspace backend start",
-    "start:frontend": "yarn workspace frontend preview",
+    "build:frontend": "yarn workspace frontend build || npm run build --workspace=frontend",
+    "build:backend": "yarn workspace backend build || npm run build --workspace=backend",
+    "build": "powershell -ExecutionPolicy Bypass -File scripts/railway-build-resilient.ps1",
+    "start:backend": "yarn workspace backend start || npm run start --workspace=backend",
+    "start:frontend": "yarn workspace frontend preview || npm run preview --workspace=frontend",
     "start": "concurrently \"yarn start:backend\" \"yarn start:frontend\"",
     "dev": "concurrently \"yarn workspace backend dev\" \"yarn workspace frontend dev\"",
     "dev:backend": "yarn workspace backend dev",
@@ -42,7 +42,7 @@
     "validate:production": "node scripts/validate-production.js",
     "deploy:render": "yarn build:backend",
     "deploy:vercel": "yarn build:frontend",
-    "deploy:railway": "yarn build:backend && yarn build:frontend",
+    "deploy:railway": "powershell -ExecutionPolicy Bypass -File scripts/railway-build-resilient.ps1",
     "deploy:full": "yarn build && yarn validate:production",
     "lint": "yarn workspace backend lint && yarn workspace frontend lint",
     "lint:fix": "yarn workspace backend lint:fix && yarn workspace frontend lint:fix",
@@ -53,7 +53,8 @@
     "prepare": "husky install",
     "deploy:audit": "node -e \"console.log('Running deployment audit...'); require('./COMPREHENSIVE-DEPLOYMENT-AUDIT-REPORT.md')\"",
     "start:replit": "node server.js",
-    "install:all": "yarn install && yarn build:backend"
+    "install:all": "powershell -ExecutionPolicy Bypass -File scripts/railway-build-resilient.ps1",
+    "railway:build": "powershell -ExecutionPolicy Bypass -File scripts/railway-build-resilient.ps1"
   },
   "dependencies": {
     "cors": "^2.8.5",

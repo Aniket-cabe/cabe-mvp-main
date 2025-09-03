@@ -1,5 +1,5 @@
 # Multi-stage Dockerfile for CaBE Arena Monorepo
-# Supports both frontend and backend services
+# Supports both frontend and backend services with network resilience
 
 # Stage 1: Dependencies and Build
 FROM node:22-bullseye AS builder
@@ -11,6 +11,8 @@ COPY package.json ./
 COPY .yarn .yarn
 COPY .pnp.cjs .pnp.cjs
 COPY .pnp.loader.mjs .pnp.loader.mjs
+COPY .npmrc ./
+COPY .yarnrc ./
 
 # Copy workspace package files
 COPY frontend/package.json frontend/
@@ -18,15 +20,17 @@ COPY backend/package.json backend/
 COPY shared/eslint-config/package.json shared/eslint-config/
 COPY shared/ts-config-base/package.json shared/ts-config-base/
 
-# Install dependencies using Yarn PnP
-RUN yarn install --immutable
+# Install dependencies using Yarn PnP with npm fallback
+RUN yarn config set registry https://registry.npmjs.org/ && \
+    yarn install --network-timeout 300000 --network-concurrency 1 || \
+    npm install
 
 # Copy source code
 COPY . .
 
 # Build both frontend and backend
-RUN yarn build:backend
-RUN yarn build:frontend
+RUN yarn build:backend || npm run build:backend
+RUN yarn build:frontend || npm run build:frontend
 
 # Stage 2: Backend Runtime
 FROM node:22-bullseye AS backend-runtime

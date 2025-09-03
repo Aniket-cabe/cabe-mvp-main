@@ -1,19 +1,25 @@
 [phases.setup]
-nix_pkgs = ["nodejs-22_x", "yarn"]
+nix_pkgs = ["nodejs-22_x", "yarn", "npm"]
 
 [phases.install]
-cmds = ["yarn install --frozen-lockfile"]
+cmds = [
+  "yarn config set registry https://registry.npmjs.org/",
+  "yarn install --network-timeout 300000 --network-concurrency 1 || npm install"
+]
 
 [phases.build]
-cmds = ["yarn build"]
+cmds = [
+  "yarn build:backend || npm run build:backend",
+  "yarn build:frontend || npm run build:frontend"
+]
 
 [phases.start]
-cmd = "yarn start:backend"
+cmd = "yarn start:backend || npm run start:backend"
 
 # Frontend service override
 [start]
-cmd = "yarn start:frontend"
+cmd = "yarn start:frontend || npm run start:frontend"
 
 # Backend service override  
 [start]
-cmd = "yarn start:backend"
+cmd = "yarn start:backend || npm run start:backend"
