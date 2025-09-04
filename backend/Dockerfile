@@ -54,5 +54,21 @@ ENV PORT=3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=10 \
   CMD node scripts/health-check.js
 
-# Start command using Railway start script
-CMD ["node", "scripts/railway-start.js"]
+# Create a startup script that handles errors gracefully
+RUN echo '#!/bin/sh' > /start.sh && \
+    echo 'echo "Starting CaBE Arena Backend..."' >> /start.sh && \
+    echo 'echo "Node version: $(node --version)"' >> /start.sh && \
+    echo 'echo "NPM version: $(npm --version)"' >> /start.sh && \
+    echo 'echo "Environment: $NODE_ENV"' >> /start.sh && \
+    echo 'echo "Port: $PORT"' >> /start.sh && \
+    echo 'echo "Working directory: $(pwd)"' >> /start.sh && \
+    echo 'echo "Files in current directory:"' >> /start.sh && \
+    echo 'ls -la' >> /start.sh && \
+    echo 'echo "Files in dist directory:"' >> /start.sh && \
+    echo 'ls -la dist/ || echo "No dist directory found"' >> /start.sh && \
+    echo 'echo "Starting application..."' >> /start.sh && \
+    echo 'node scripts/railway-start.js' >> /start.sh && \
+    chmod +x /start.sh
+
+# Start command using startup script
+CMD ["/start.sh"]

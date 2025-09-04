@@ -13,6 +13,7 @@ const envSchema = z.object({
 
   // Database
   DATABASE_URL: z.string().min(1).optional(),
+  MONGO_URL: z.string().min(1).optional(),
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
   SUPABASE_ANON_KEY: z.string().min(1).optional(),

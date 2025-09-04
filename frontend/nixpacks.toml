@@ -8,4 +8,4 @@ cmds = ["yarn install --frozen-lockfile"]
 cmds = ["yarn build"]
 
 [phases.start]
-cmd = "yarn start:backend"
+cmd = "yarn start:frontend"

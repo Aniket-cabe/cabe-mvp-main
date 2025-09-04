@@ -1,76 +1,21 @@
-# Multi-stage Dockerfile for CaBE Arena Monorepo
-# Supports both frontend and backend services with network resilience
-
-# Stage 1: Dependencies and Build
+# Stage 1: install deps & build
 FROM node:22-bullseye AS builder
-
 WORKDIR /app
-
-# Copy root package files
-COPY package.json ./
-COPY .yarn .yarn
-COPY .pnp.cjs .pnp.cjs
-COPY .pnp.loader.mjs .pnp.loader.mjs
-COPY .npmrc ./
-COPY .yarnrc ./
-
-# Copy workspace package files
-COPY frontend/package.json frontend/
+COPY package.json yarn.lock ./
+COPY frontend/package.json frontend/ 
 COPY backend/package.json backend/
-COPY shared/eslint-config/package.json shared/eslint-config/
-COPY shared/ts-config-base/package.json shared/ts-config-base/
-
-# Install dependencies using Yarn PnP with npm fallback
-RUN yarn config set registry https://registry.npmjs.org/ && \
-    yarn install --network-timeout 300000 --network-concurrency 1 || \
-    npm install
-
-# Copy source code
+# install root workspace deps
+RUN yarn install --frozen-lockfile
 COPY . .
+RUN yarn build
 
-# Build both frontend and backend
-RUN yarn build:backend || npm run build:backend
-RUN yarn build:frontend || npm run build:frontend
-
-# Stage 2: Backend Runtime
-FROM node:22-bullseye AS backend-runtime
-
+# Stage 2: runtime image for backend
+FROM node:22-bullseye AS runtime
 WORKDIR /app
-
 ENV NODE_ENV=production
-
-# Install curl for health checks
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
-
-# Copy built backend and dependencies
-COPY --from=builder /app/backend/dist ./dist
-COPY --from=builder /app/backend/package.json ./package.json
-COPY --from=builder /app/scripts/validate-env.js ./scripts/validate-env.js
+COPY --from=builder /app/backend/dist ./backend/dist
 COPY --from=builder /app/node_modules ./node_modules
-
-# Expose port for Railway
+COPY backend/package.json ./backend/package.json
 EXPOSE 3000
 ENV PORT=3000
-
-# Health check with proper curl command
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
-  CMD curl -f http://localhost:$PORT/health || exit 1
-
-# Start backend service with proper command
-CMD ["node", "dist/index.js"]
-
-# Stage 3: Frontend Runtime
-FROM nginx:alpine AS frontend-runtime
-
-# Copy built frontend
-COPY --from=builder /app/frontend/dist /usr/share/nginx/html
-
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
-
-# Expose port for Railway
-EXPOSE 3000
-ENV PORT=3000
-
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["yarn","start:backend"]

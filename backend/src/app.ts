@@ -528,12 +528,23 @@ async function checkExternalServices(): Promise<boolean> {
 // Initialize database connection
 export const initializeDatabase = async (): Promise<void> => {
   try {
-    await connectToDatabase();
-    setupDatabaseGracefulShutdown();
-    logger.info('✅ Database initialized successfully');
+    logger.info('Initializing database connection...');
+    
+    // Try to connect to MongoDB if MONGO_URL is provided
+    if (process.env.MONGO_URL) {
+      await connectToDatabase();
+      setupDatabaseGracefulShutdown();
+      logger.info('✅ MongoDB initialized successfully');
+    } else if (process.env.DATABASE_URL) {
+      // PostgreSQL is handled by the pool in db/pool.ts
+      logger.info('✅ PostgreSQL pool initialized successfully');
+    } else {
+      logger.warn('⚠️ No database configured - running in database-less mode');
+    }
   } catch (error) {
     logger.error('❌ Database initialization failed:', error);
-    throw error;
+    // Don't throw error - allow app to start without database
+    logger.warn('⚠️ Continuing without database connection');
   }
 };
 

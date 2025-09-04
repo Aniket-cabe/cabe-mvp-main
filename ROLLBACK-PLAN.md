@@ -1,235 +1,246 @@
-# 🔄 Rollback Plan for Railway Deployment
+# 🔄 Railway Deployment Rollback Plan
 
-## 🚨 **When to Rollback**
-- Build failures on Railway
-- Runtime errors after deployment
-- Critical functionality broken
-- Performance issues
-- Security vulnerabilities discovered
+## 🚨 **Emergency Rollback Procedures**
 
-## 📋 **Rollback Options**
+This document outlines the steps to rollback your Railway deployment in case of critical issues.
 
-### Option 1: Complete Rollback (Recommended)
-Rollback all changes to the previous working state:
-
-```bash
-# View recent commits
-git log --oneline -10
-
-# Rollback to the last working commit
-git revert HEAD --no-edit
-
-# Push the rollback
-git push origin main
-```
-
-### Option 2: Selective File Rollback
-Rollback specific files to their previous state:
-
-```bash
-# Rollback specific files
-git checkout HEAD~1 -- package.json
-git checkout HEAD~1 -- frontend/package.json
-git checkout HEAD~1 -- backend/package.json
-git checkout HEAD~1 -- frontend/vite.config.ts
-
-# Commit the rollback
-git add .
-git commit -m "rollback: revert Railway deployment changes for specific files"
-git push origin main
-```
-
-### Option 3: Reset to Previous Commit
-**⚠️ WARNING: This will lose all uncommitted changes**
-
-```bash
-# Hard reset to previous commit
-git reset --hard HEAD~1
-
-# Force push (use with caution)
-git push --force-with-lease origin main
-```
-
-## 🔍 **Pre-Rollback Checklist**
+## 📋 **Pre-Rollback Checklist**
 
 Before rolling back, ensure you have:
+- [ ] Identified the specific issue causing the rollback
+- [ ] Documented the current deployment state
+- [ ] Notified stakeholders about the rollback
+- [ ] Prepared the rollback target (previous working version)
 
-- [ ] Identified the specific issue
-- [ ] Documented the problem
-- [ ] Backed up any important changes
-- [ ] Notified team members
-- [ ] Verified rollback target commit
+## 🔄 **Complete Rollback (Recommended for Critical Issues)**
 
-## 📝 **Rollback Commands by File**
-
-### Root package.json
+### **Option 1: Git Revert (Safest)**
 ```bash
-git checkout HEAD~1 -- package.json
+# 1. Check current commit hash
+git log --oneline -5
+
+# 2. Revert the problematic commit
+git revert <commit-hash>
+
+# 3. Push the revert
+git push origin main
+
+# 4. Railway will auto-deploy the reverted version
 ```
 
-### Frontend package.json
+### **Option 2: Reset to Previous Working Version**
 ```bash
-git checkout HEAD~1 -- frontend/package.json
+# 1. Check current commit hash
+git log --oneline -5
+
+# 2. Reset to previous working commit
+git reset --hard <previous-commit-hash>
+
+# 3. Force push (use with caution)
+git push --force-with-lease origin main
+
+# 4. Railway will auto-deploy the reset version
 ```
 
-### Backend package.json
+## 🎯 **Selective Rollback (For Specific Issues)**
+
+### **Rollback Backend Only**
 ```bash
+# 1. Revert backend-specific changes
 git checkout HEAD~1 -- backend/package.json
-```
-
-### Vite config
-```bash
-git checkout HEAD~1 -- frontend/vite.config.ts
-```
-
-### Dockerfile
-```bash
-git checkout HEAD~1 -- Dockerfile
 git checkout HEAD~1 -- backend/Dockerfile
+git checkout HEAD~1 -- backend/src/
+
+# 2. Commit the selective rollback
+git add backend/
+git commit -m "rollback: revert backend changes to fix Railway deployment"
+
+# 3. Push changes
+git push origin main
 ```
 
-### Nixpacks config
+### **Rollback Frontend Only**
 ```bash
+# 1. Revert frontend-specific changes
+git checkout HEAD~1 -- frontend/package.json
+git checkout HEAD~1 -- frontend/Dockerfile
+git checkout HEAD~1 -- frontend/vite.config.ts
+
+# 2. Commit the selective rollback
+git add frontend/
+git commit -m "rollback: revert frontend changes to fix Railway deployment"
+
+# 3. Push changes
+git push origin main
+```
+
+### **Rollback Configuration Files Only**
+```bash
+# 1. Revert Railway configuration files
 git checkout HEAD~1 -- nixpacks.toml
+git checkout HEAD~1 -- Dockerfile
+git checkout HEAD~1 -- railway.json
+git checkout HEAD~1 -- RAILWAY-DEPLOYMENT-PLAYBOOK.md
+
+# 2. Commit the configuration rollback
+git add nixpacks.toml Dockerfile railway.json RAILWAY-DEPLOYMENT-PLAYBOOK.md
+git commit -m "rollback: revert Railway configuration files"
+
+# 3. Push changes
+git push origin main
 ```
 
-### Environment files
+## 🚀 **Railway-Specific Rollback**
+
+### **Rollback via Railway Dashboard**
+1. Go to your Railway project dashboard
+2. Select the problematic service
+3. Click on "Deployments" tab
+4. Find the last working deployment
+5. Click "Redeploy" on that deployment
+
+### **Rollback via Railway CLI**
 ```bash
-git checkout HEAD~1 -- frontend/env.example
-git checkout HEAD~1 -- backend/env.example
+# 1. List deployments
+railway deployments
+
+# 2. Rollback to specific deployment
+railway rollback <deployment-id>
+
+# 3. Verify rollback
+railway status
 ```
 
-## 🚀 **Post-Rollback Actions**
+## 🔧 **Post-Rollback Actions**
 
-### 1. **Verify Rollback Success**
+### **Immediate Actions**
+1. **Verify Rollback Success**
+   - Check if services are running
+   - Verify health checks pass
+   - Test basic functionality
+
+2. **Monitor Logs**
+   - Check Railway service logs
+   - Monitor for any new errors
+   - Verify environment variables
+
+3. **Test Integration**
+   - Test frontend-backend communication
+   - Verify database connections
+   - Check API endpoints
+
+### **Documentation Updates**
+1. **Update Rollback Log**
+   - Document what was rolled back
+   - Note the reason for rollback
+   - Record the rollback timestamp
+
+2. **Update Deployment Notes**
+   - Mark the problematic deployment
+   - Note any lessons learned
+   - Update deployment procedures
+
+## 🚨 **Critical Rollback Scenarios**
+
+### **Database Connection Issues**
 ```bash
-# Check current status
-git status
+# If database connection is the issue, rollback backend only
+git checkout HEAD~1 -- backend/src/config/database.ts
+git checkout HEAD~1 -- backend/src/routes/health.ts
 
-# Verify files are reverted
-git diff HEAD~1
+git add backend/
+git commit -m "rollback: revert database configuration changes"
+git push origin main
 ```
 
-### 2. **Test Local Build**
+### **Build Failures**
 ```bash
-# Test backend build
+# If build is failing, rollback package.json changes
+git checkout HEAD~1 -- package.json
+git checkout HEAD~1 -- backend/package.json
+git checkout HEAD~1 -- frontend/package.json
+
+git add package.json backend/package.json frontend/package.json
+git commit -m "rollback: revert package.json changes causing build failures"
+git push origin main
+```
+
+### **Health Check Failures**
+```bash
+# If health checks are failing, rollback Dockerfile changes
+git checkout HEAD~1 -- backend/Dockerfile
+git checkout HEAD~1 -- frontend/Dockerfile
+
+git add backend/Dockerfile frontend/Dockerfile
+git commit -m "rollback: revert Dockerfile changes causing health check failures"
+git push origin main
+```
+
+## 📊 **Rollback Decision Matrix**
+
+| Issue Type | Severity | Rollback Strategy | Rollback Target |
+|------------|----------|-------------------|-----------------|
+| Build Failure | High | Complete | Previous working commit |
+| Health Check Failure | High | Selective (Dockerfiles) | Previous working commit |
+| Runtime Errors | Medium | Selective (Source code) | Previous working commit |
+| Configuration Issues | Low | Selective (Config files) | Previous working commit |
+| Performance Degradation | Medium | Selective (Recent changes) | Previous working commit |
+
+## 🔍 **Troubleshooting Rollback Issues**
+
+### **Rollback Fails to Deploy**
+```bash
+# 1. Check Railway build logs
+railway logs
+
+# 2. Verify the rolled back code builds locally
 yarn build:backend
-
-# Test frontend build
 yarn build:frontend
 
-# Test backend start
-yarn start:backend
-```
-
-### 3. **Update Railway**
-- Go to Railway dashboard
-- Redeploy the rolled-back version
-- Verify services are working
-
-### 4. **Document the Issue**
-- Record what went wrong
-- Note the rollback commit hash
-- Plan fixes for next deployment attempt
-
-## 🔧 **Alternative Recovery Options**
-
-### 1. **Hotfix Deployment**
-Instead of rolling back, deploy a hotfix:
-
-```bash
-# Create hotfix branch
-git checkout -b hotfix/railway-fix
-
-# Make minimal fixes
-# ... fix the issue ...
-
-# Commit and push
-git add .
-git commit -m "hotfix: resolve Railway deployment issue"
-git push origin hotfix/railway-fix
-
-# Merge to main
-git checkout main
-git merge hotfix/railway-fix
+# 3. If local build fails, rollback further
+git checkout HEAD~2 -- .
+git commit -m "rollback: revert to earlier working version"
 git push origin main
 ```
 
-### 2. **Partial Rollback**
-Rollback only the problematic changes:
-
+### **Rollback Causes New Issues**
 ```bash
-# Revert specific commits
-git revert <commit-hash-1> <commit-hash-2>
+# 1. Identify the new issue
+railway logs
 
-# Push partial rollback
-git push origin main
-```
-
-## 📚 **Useful Git Commands**
-
-### View History
-```bash
-# View recent commits
+# 2. Rollback to an even earlier version
 git log --oneline -10
+git checkout <earlier-commit-hash> -- .
 
-# View changes in a commit
-git show <commit-hash>
-
-# View file history
-git log --follow -- <filename>
+# 3. Commit and push
+git add .
+git commit -m "rollback: revert to earlier stable version"
+git push origin main
 ```
 
-### Compare Versions
-```bash
-# Compare with previous commit
-git diff HEAD~1
+## 📝 **Rollback Checklist**
 
-# Compare specific commits
-git diff <commit-hash-1> <commit-hash-2>
+- [ ] Issue identified and documented
+- [ ] Rollback strategy selected
+- [ ] Rollback target identified
+- [ ] Rollback executed
+- [ ] Services redeployed
+- [ ] Health checks passing
+- [ ] Basic functionality verified
+- [ ] Integration tests passed
+- [ ] Rollback documented
+- [ ] Root cause analysis initiated
 
-# Compare specific file
-git diff HEAD~1 -- <filename>
-```
+## 🎯 **Prevention Measures**
 
-### Stash Changes
-```bash
-# Stash current changes
-git stash
-
-# Apply stashed changes
-git stash pop
-
-# List stashes
-git stash list
-```
-
-## 🎯 **Rollback Decision Matrix**
-
-| Issue Type | Recommended Action | Rollback Level |
-|------------|-------------------|----------------|
-| Build failure | Complete rollback | Full |
-| Runtime error | Selective rollback | Partial |
-| Performance issue | Hotfix | None |
-| Security issue | Complete rollback | Full |
-| Feature regression | Selective rollback | Partial |
-
-## ⚠️ **Important Notes**
-
-1. **Always test locally** before rolling back
-2. **Communicate with team** about rollback
-3. **Document the issue** for future reference
-4. **Plan the fix** before next deployment
-5. **Use force push sparingly** and only when necessary
-
-## 🚀 **After Successful Rollback**
-
-1. **Analyze the root cause** of the failure
-2. **Fix the issue** in a new branch
-3. **Test thoroughly** before redeploying
-4. **Deploy incrementally** to catch issues early
-5. **Monitor closely** after redeployment
+To avoid future rollbacks:
+1. **Test Locally First**: Always test changes locally before pushing
+2. **Use Feature Branches**: Develop new features in separate branches
+3. **Incremental Deployments**: Deploy changes in small, manageable chunks
+4. **Automated Testing**: Implement comprehensive test suites
+5. **Monitoring**: Set up proper monitoring and alerting
+6. **Documentation**: Keep deployment procedures up to date
 
 ---
 
-**Remember: A successful rollback is better than a broken deployment!** 🔄
+**Remember**: Rollbacks are a normal part of the deployment process. The goal is to minimize downtime and restore service quickly while maintaining system stability.

@@ -36,6 +36,8 @@ We'll create **two separate Railway services**:
 - **Build Command**: `yarn build:backend`
 - **Start Command**: `yarn start:backend`
 - **Watch Paths**: `/backend/**`
+- **Dockerfile Path**: `backend/Dockerfile`
+- **Railway Config File**: `railway-backend.json`
 
 ### 2.3 **Backend Environment Variables**
 Set these in the backend service variables:
@@ -73,7 +75,7 @@ ENABLE_HEALTH_CHECKS=true
 
 ### 2.4 **Backend Health Check**
 - **Health Check Path**: `/health`
-- **Health Check Timeout**: 30 seconds
+- **Health Check Timeout**: 300 seconds
 
 ## 🌐 **Step 3: Create Frontend Service**
 
@@ -87,6 +89,8 @@ ENABLE_HEALTH_CHECKS=true
 - **Build Command**: `yarn build:frontend`
 - **Start Command**: `yarn start:frontend`
 - **Watch Paths**: `/frontend/**`
+- **Dockerfile Path**: `frontend/Dockerfile`
+- **Railway Config File**: `railway-frontend.json`
 
 ### 3.3 **Frontend Environment Variables**
 Set these in the frontend service variables:
@@ -94,6 +98,7 @@ Set these in the frontend service variables:
 ```bash
 # API Configuration
 VITE_API_BASE_URL=https://your-backend-service.railway.app
+BACKEND_URL=https://your-backend-service.railway.app
 
 # Environment
 NODE_ENV=production
@@ -103,6 +108,10 @@ PORT=3000
 VITE_APP_NAME=CaBE Arena
 VITE_APP_VERSION=1.0.0
 ```
+
+### 3.4 **Frontend Health Check**
+- **Health Check Path**: `/health`
+- **Health Check Timeout**: 60 seconds
 
 ## 🗄️ **Step 4: Add Database Plugins**
 
@@ -170,6 +179,7 @@ VITE_APP_VERSION=1.0.0
 - [ ] Backend service shows "Deployed" status
 - [ ] Frontend service shows "Deployed" status
 - [ ] Backend health check passes (`/health` returns 200)
+- [ ] Frontend health check passes (`/health` returns 200)
 - [ ] Frontend loads without errors
 - [ ] API calls from frontend to backend work
 - [ ] Database connections established
@@ -189,9 +199,10 @@ VITE_APP_VERSION=1.0.0
 - Check CORS configuration
 
 ### Health Check Failures
-- Ensure backend starts successfully
-- Check if `/health` endpoint exists
-- Verify port binding to `0.0.0.0`
+- **Backend**: Ensure backend starts successfully and `/health` endpoint exists
+- **Frontend**: Ensure nginx serves static files and `/health` endpoint exists
+- Check if services bind to correct ports
+- Verify environment variables are set correctly
 
 ## 📚 **Useful Commands**
 
@@ -232,7 +243,7 @@ yarn start:frontend
 ## 🎉 **Success Indicators**
 
 - ✅ Both services show "Deployed" status
-- ✅ Health checks pass
+- ✅ Health checks pass for both services
 - ✅ Frontend loads and displays correctly
 - ✅ API calls work between services
 - ✅ Database connections established

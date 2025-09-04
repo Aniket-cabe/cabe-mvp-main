@@ -294,6 +294,12 @@ export const corsOptions = {
         'vercel.app',
         'vercel.com',
         
+        // Railway domains
+        /^https:\/\/.*\.up\.railway\.app$/,
+        /^https:\/\/.*\.railway\.app$/,
+        'up.railway.app',
+        'railway.app',
+        
         // Replit domains (legacy support)
         /^https:\/\/.*\.repl\.co$/,
         /^https:\/\/.*\.replit\.dev$/,

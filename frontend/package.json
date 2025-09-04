@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build --outDir dist --sourcemap false",
-    "preview": "vite preview --port $PORT --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --port $PORT",
     "vercel-build": "yarn build",
     "railway-build": "yarn build",
+    "railway-start": "yarn preview",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",

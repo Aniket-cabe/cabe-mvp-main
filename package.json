@@ -9,11 +9,11 @@
     "shared/*"
   ],
   "scripts": {
-    "build:frontend": "yarn workspace frontend build || npm run build --workspace=frontend",
-    "build:backend": "yarn workspace backend build || npm run build --workspace=backend",
-    "build": "powershell -ExecutionPolicy Bypass -File scripts/railway-build-resilient.ps1",
-    "start:backend": "yarn workspace backend start || npm run start --workspace=backend",
-    "start:frontend": "yarn workspace frontend preview || npm run preview --workspace=frontend",
+    "build:frontend": "yarn workspace frontend build",
+    "build:backend": "yarn workspace backend build",
+    "build": "yarn build:backend && yarn build:frontend",
+    "start:backend": "yarn workspace backend start",
+    "start:frontend": "yarn workspace frontend preview",
     "start": "concurrently \"yarn start:backend\" \"yarn start:frontend\"",
     "dev": "concurrently \"yarn workspace backend dev\" \"yarn workspace frontend dev\"",
     "dev:backend": "yarn workspace backend dev",
@@ -27,7 +27,7 @@
     "test:load": "node tools/load-test.js",
     "test:load:advanced": "node tools/advanced-load-test.js",
     "test:smoke": "bash tools/smoke-test.sh",
-    "test:all": "powershell -ExecutionPolicy Bypass -File scripts/run-all-tests.ps1",
+    "test:all": "yarn test:unit && yarn test:integration && yarn test:e2e",
     "test:unit": "yarn workspace backend test:unit && yarn workspace frontend test:unit",
     "test:integration": "yarn workspace backend test:integration && yarn workspace frontend test:integration",
     "test:coverage": "yarn workspace backend test:coverage && yarn workspace frontend test:coverage",
@@ -42,7 +42,7 @@
     "validate:production": "node scripts/validate-production.js",
     "deploy:render": "yarn build:backend",
     "deploy:vercel": "yarn build:frontend",
-    "deploy:railway": "powershell -ExecutionPolicy Bypass -File scripts/railway-build-resilient.ps1",
+    "deploy:railway": "yarn build",
     "deploy:full": "yarn build && yarn validate:production",
     "lint": "yarn workspace backend lint && yarn workspace frontend lint",
     "lint:fix": "yarn workspace backend lint:fix && yarn workspace frontend lint:fix",
@@ -53,8 +53,8 @@
     "prepare": "husky install",
     "deploy:audit": "node -e \"console.log('Running deployment audit...'); require('./COMPREHENSIVE-DEPLOYMENT-AUDIT-REPORT.md')\"",
     "start:replit": "node server.js",
-    "install:all": "powershell -ExecutionPolicy Bypass -File scripts/railway-build-resilient.ps1",
-    "railway:build": "powershell -ExecutionPolicy Bypass -File scripts/railway-build-resilient.ps1"
+    "install:all": "yarn install",
+    "railway:build": "yarn build"
   },
   "dependencies": {
     "cors": "^2.8.5",

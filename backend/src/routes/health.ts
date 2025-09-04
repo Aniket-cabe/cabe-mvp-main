@@ -20,17 +20,22 @@ router.get('/', async (req: Request, res: Response) => {
   };
 
   try {
-    // Check database connectivity
+    // Check database connectivity (PostgreSQL)
     try {
-      const client = await pool.connect();
-      await client.query('SELECT 1 as ok');
-      client.release();
-      health.services.database = 'up';
-      logger.debug('Health check: Database connection successful');
+      if (pool && process.env.DATABASE_URL) {
+        const client = await pool.connect();
+        await client.query('SELECT 1 as ok');
+        client.release();
+        health.services.database = 'up';
+        logger.debug('Health check: PostgreSQL connection successful');
+      } else {
+        health.services.database = 'no-db';
+        logger.debug('Health check: No PostgreSQL configured');
+      }
     } catch (dbError) {
       health.services.database = 'down';
       health.status = 'degraded';
-      logger.warn('Health check: Database connection failed', { error: dbError });
+      logger.warn('Health check: PostgreSQL connection failed', { error: dbError });
     }
 
     // Check Redis connectivity (if configured)

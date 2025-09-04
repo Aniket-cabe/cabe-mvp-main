@@ -7,12 +7,13 @@ const path = require('path');
 console.log('🚀 Starting CaBE Arena Backend for Railway...');
 
 // Check if dist/index.js exists
-const indexPath = path.join(__dirname, '..', 'backend', 'dist', 'index.js');
+const indexPath = path.join(__dirname, '..', 'dist', 'index.js');
 const fs = require('fs');
 
 if (!fs.existsSync(indexPath)) {
   console.error('❌ Backend build not found. Please run build first.');
   console.error(`Expected path: ${indexPath}`);
+  console.error('Available files in dist:', fs.readdirSync(path.join(__dirname, '..', 'dist')).join(', '));
   process.exit(1);
 }
 

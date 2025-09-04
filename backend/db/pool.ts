@@ -1,8 +1,8 @@
 import { Pool, PoolConfig } from 'pg';
 
-// Validate required environment variables
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is required');
+// Validate required environment variables - make it optional for Railway
+if (!process.env.DATABASE_URL && !process.env.MONGO_URL) {
+  console.warn('⚠️ No DATABASE_URL or MONGO_URL found. Database features will be disabled.');
 }
 
 // Parse DB_POOL_SIZE safely with fallback to 10
@@ -41,29 +41,35 @@ const determineSSLConfig = () => {
   return false;
 };
 
-// Pool configuration
-const poolConfig: PoolConfig = {
+// Pool configuration - only create if DATABASE_URL exists
+const poolConfig: PoolConfig | null = process.env.DATABASE_URL ? {
   connectionString: process.env.DATABASE_URL,
   max: parsePoolSize(),
   ssl: determineSSLConfig(),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
   maxUses: 7500,
-};
+} : null;
 
 // Log the resolved pool configuration at startup
-console.log('Database pool configuration:', {
-  max: poolConfig.max,
-  ssl: poolConfig.ssl
-});
+if (poolConfig) {
+  console.log('Database pool configuration:', {
+    max: poolConfig.max,
+    ssl: poolConfig.ssl
+  });
+} else {
+  console.log('No PostgreSQL database configured - using MongoDB only');
+}
 
-// Create and export the pool instance
-const pool = new Pool(poolConfig);
+// Create and export the pool instance (only if configured)
+const pool = poolConfig ? new Pool(poolConfig) : null;
 
-// Handle pool errors
-pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
-});
+// Handle pool errors (only if pool exists)
+if (pool) {
+  pool.on('error', (err) => {
+    console.error('Unexpected error on idle client', err);
+    process.exit(-1);
+  });
+}
 
 export default pool;
