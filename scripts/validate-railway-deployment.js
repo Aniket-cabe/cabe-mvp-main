@@ -2,211 +2,253 @@
 
 /**
  * Railway Deployment Validation Script
- * Validates that all required environment variables and configurations are set
+ * Validates that the monorepo is ready for Railway deployment
  */
 
-const https = require('https');
-const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
 
-// Colors for console output
 const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  red: '\x1b[31m',
   green: '\x1b[32m',
+  red: '\x1b[31m',
   yellow: '\x1b[33m',
   blue: '\x1b[34m',
-  magenta: '\x1b[35m',
-  cyan: '\x1b[36m'
+  reset: '\x1b[0m',
+  bold: '\x1b[1m'
 };
 
 function log(message, color = 'reset') {
   console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
-function makeRequest(url) {
-  return new Promise((resolve, reject) => {
-    const client = url.startsWith('https') ? https : http;
-    const req = client.get(url, { timeout: 10000 }, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => resolve({ status: res.statusCode, data }));
-    });
-    
-    req.on('error', reject);
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('Request timeout'));
-    });
-  });
+function checkFileExists(filePath, description) {
+  if (fs.existsSync(filePath)) {
+    log(`✅ ${description}`, 'green');
+    return true;
+  } else {
+    log(`❌ ${description} - File not found: ${filePath}`, 'red');
+    return false;
+  }
 }
 
-async function validateEnvironment() {
-  log('\n🔍 Validating Railway Deployment Environment...', 'cyan');
-  
-  const requiredVars = [
-    'NODE_ENV',
-    'PORT'
-  ];
-  
-  const optionalVars = [
-    'DATABASE_URL',
-    'MONGO_URL',
-    'JWT_SECRET',
-    'FRONTEND_URL',
-    'CORS_ORIGIN',
-    'SUPABASE_URL',
-    'SUPABASE_ANON_KEY',
-    'OPENAI_API_KEY'
-  ];
-  
-  let allGood = true;
-  
-  // Check required variables
-  log('\n📋 Required Environment Variables:', 'blue');
-  for (const varName of requiredVars) {
-    if (process.env[varName]) {
-      log(`  ✅ ${varName}: ${process.env[varName]}`, 'green');
-    } else {
-      log(`  ❌ ${varName}: NOT SET`, 'red');
-      allGood = false;
-    }
-  }
-  
-  // Check optional variables
-  log('\n📋 Optional Environment Variables:', 'blue');
-  for (const varName of optionalVars) {
-    if (process.env[varName]) {
-      const value = varName.includes('SECRET') || varName.includes('KEY') 
-        ? '***HIDDEN***' 
-        : process.env[varName];
-      log(`  ✅ ${varName}: ${value}`, 'green');
-    } else {
-      log(`  ⚠️  ${varName}: NOT SET`, 'yellow');
-    }
-  }
-  
-  return allGood;
-}
-
-async function validateHealthChecks() {
-  log('\n🏥 Validating Health Checks...', 'cyan');
-  
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-  
+function checkPackageJsonScripts(packageJsonPath, requiredScripts, description) {
   try {
-    // Test backend health
-    log(`\n🔍 Testing backend health: ${backendUrl}/health`, 'blue');
-    const backendHealth = await makeRequest(`${backendUrl}/health`);
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    const scripts = packageJson.scripts || {};
     
-    if (backendHealth.status === 200) {
-      log('  ✅ Backend health check passed', 'green');
-      try {
-        const healthData = JSON.parse(backendHealth.data);
-        log(`  📊 Status: ${healthData.status}`, 'blue');
-        log(`  🕒 Uptime: ${Math.round(healthData.uptime)}s`, 'blue');
-        if (healthData.services) {
-          log(`  🗄️  Database: ${healthData.services.database}`, 'blue');
-          log(`  🔴 Redis: ${healthData.services.redis}`, 'blue');
-        }
-      } catch (e) {
-        log('  ⚠️  Could not parse health response', 'yellow');
+    let allFound = true;
+    for (const script of requiredScripts) {
+      if (scripts[script]) {
+        log(`✅ ${description} - Script '${script}' found`, 'green');
+      } else {
+        log(`❌ ${description} - Script '${script}' missing`, 'red');
+        allFound = false;
       }
-    } else {
-      log(`  ❌ Backend health check failed: ${backendHealth.status}`, 'red');
     }
+    
+    return allFound;
   } catch (error) {
-    log(`  ❌ Backend health check error: ${error.message}`, 'red');
+    log(`❌ ${description} - Error reading package.json: ${error.message}`, 'red');
+    return false;
   }
+}
+
+function checkWorkspaceBuild() {
+  log('\n🔨 Testing workspace builds...', 'blue');
   
   try {
-    // Test frontend health
-    log(`\n🔍 Testing frontend health: ${frontendUrl}/health`, 'blue');
-    const frontendHealth = await makeRequest(`${frontendUrl}/health`);
+    // Test backend build
+    log('Building backend...', 'yellow');
+    execSync('yarn workspace @cabe-arena/backend build', { stdio: 'pipe' });
+    log('✅ Backend build successful', 'green');
     
-    if (frontendHealth.status === 200) {
-      log('  ✅ Frontend health check passed', 'green');
+    // Check if dist directory exists
+    if (fs.existsSync('backend/dist')) {
+      log('✅ Backend dist directory created', 'green');
     } else {
-      log(`  ❌ Frontend health check failed: ${frontendHealth.status}`, 'red');
+      log('❌ Backend dist directory not found', 'red');
+      return false;
     }
+    
+    // Test frontend build
+    log('Building frontend...', 'yellow');
+    execSync('yarn workspace @cabe-arena/frontend build', { stdio: 'pipe' });
+    log('✅ Frontend build successful', 'green');
+    
+    // Check if dist directory exists
+    if (fs.existsSync('frontend/dist')) {
+      log('✅ Frontend dist directory created', 'green');
+    } else {
+      log('❌ Frontend dist directory not found', 'red');
+      return false;
+    }
+    
+    return true;
   } catch (error) {
-    log(`  ❌ Frontend health check error: ${error.message}`, 'red');
+    log(`❌ Build failed: ${error.message}`, 'red');
+    return false;
   }
 }
 
-async function validateDatabaseConnection() {
-  log('\n🗄️  Validating Database Connection...', 'cyan');
+function checkEnvironmentFiles() {
+  log('\n📄 Checking environment files...', 'blue');
   
-  if (process.env.DATABASE_URL) {
-    log('  ✅ PostgreSQL DATABASE_URL is configured', 'green');
-  } else {
-    log('  ⚠️  No PostgreSQL DATABASE_URL configured', 'yellow');
-  }
+  const envFiles = [
+    { path: 'frontend/env.example', description: 'Frontend environment example' },
+    { path: 'backend/env.example', description: 'Backend environment example' }
+  ];
   
-  if (process.env.MONGO_URL) {
-    log('  ✅ MongoDB MONGO_URL is configured', 'green');
-  } else {
-    log('  ⚠️  No MongoDB MONGO_URL configured', 'yellow');
-  }
-  
-  if (!process.env.DATABASE_URL && !process.env.MONGO_URL) {
-    log('  ⚠️  No database configured - running in database-less mode', 'yellow');
-  }
-}
-
-async function validateCORSConfiguration() {
-  log('\n🌐 Validating CORS Configuration...', 'cyan');
-  
-  const frontendUrl = process.env.FRONTEND_URL;
-  const corsOrigin = process.env.CORS_ORIGIN;
-  
-  if (frontendUrl && corsOrigin) {
-    if (frontendUrl === corsOrigin) {
-      log('  ✅ CORS configuration matches frontend URL', 'green');
-    } else {
-      log('  ⚠️  CORS_ORIGIN does not match FRONTEND_URL', 'yellow');
-      log(`    FRONTEND_URL: ${frontendUrl}`, 'blue');
-      log(`    CORS_ORIGIN: ${corsOrigin}`, 'blue');
+  let allFound = true;
+  for (const envFile of envFiles) {
+    if (!checkFileExists(envFile.path, envFile.description)) {
+      allFound = false;
     }
+  }
+  
+  return allFound;
+}
+
+function checkRailwayConfig() {
+  log('\n🚂 Checking Railway configuration...', 'blue');
+  
+  const configFiles = [
+    { path: 'nixpacks.toml', description: 'Nixpacks configuration' },
+    { path: 'Dockerfile', description: 'Dockerfile for Railway' },
+    { path: 'RAILWAY-DEPLOYMENT-PLAYBOOK.md', description: 'Railway deployment playbook' }
+  ];
+  
+  let allFound = true;
+  for (const configFile of configFiles) {
+    if (!checkFileExists(configFile.path, configFile.description)) {
+      allFound = false;
+    }
+  }
+  
+  return allFound;
+}
+
+function checkPackageJsonStructure() {
+  log('\n📦 Checking package.json structure...', 'blue');
+  
+  // Check root package.json
+  const rootPackageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  
+  // Check workspaces
+  if (rootPackageJson.workspaces && Array.isArray(rootPackageJson.workspaces)) {
+    log('✅ Root package.json has workspaces configured', 'green');
   } else {
-    log('  ⚠️  CORS configuration incomplete', 'yellow');
-    if (!frontendUrl) log('    FRONTEND_URL not set', 'red');
-    if (!corsOrigin) log('    CORS_ORIGIN not set', 'red');
+    log('❌ Root package.json missing workspaces configuration', 'red');
+    return false;
+  }
+  
+  // Check required scripts
+  const requiredRootScripts = [
+    'build:frontend',
+    'build:backend', 
+    'build',
+    'start:backend',
+    'start:frontend'
+  ];
+  
+  if (!checkPackageJsonScripts('package.json', requiredRootScripts, 'Root package.json')) {
+    return false;
+  }
+  
+  // Check backend package.json
+  const requiredBackendScripts = ['build', 'start'];
+  if (!checkPackageJsonScripts('backend/package.json', requiredBackendScripts, 'Backend package.json')) {
+    return false;
+  }
+  
+  // Check frontend package.json
+  const requiredFrontendScripts = ['build', 'preview'];
+  if (!checkPackageJsonScripts('frontend/package.json', requiredFrontendScripts, 'Frontend package.json')) {
+    return false;
+  }
+  
+  return true;
+}
+
+function checkYarnLock() {
+  log('\n🔒 Checking yarn.lock...', 'blue');
+  
+  if (fs.existsSync('yarn.lock')) {
+    log('✅ yarn.lock exists', 'green');
+    
+    // Check if yarn.lock is recent (modified within last 7 days)
+    const stats = fs.statSync('yarn.lock');
+    const daysSinceModified = (Date.now() - stats.mtime.getTime()) / (1000 * 60 * 60 * 24);
+    
+    if (daysSinceModified < 7) {
+      log('✅ yarn.lock is recent', 'green');
+    } else {
+      log('⚠️ yarn.lock is older than 7 days - consider running yarn install', 'yellow');
+    }
+    
+    return true;
+  } else {
+    log('❌ yarn.lock not found', 'red');
+    return false;
   }
 }
 
-async function main() {
-  log('🚀 Railway Deployment Validation', 'bright');
-  log('================================', 'bright');
+function main() {
+  log('🚀 Railway Deployment Validation', 'bold');
+  log('================================', 'bold');
   
-  const envValid = await validateEnvironment();
-  await validateDatabaseConnection();
-  await validateCORSConfiguration();
-  await validateHealthChecks();
+  let allChecksPassed = true;
   
-  log('\n📊 Validation Summary:', 'cyan');
-  if (envValid) {
-    log('  ✅ Environment validation passed', 'green');
+  // Run all checks
+  const checks = [
+    { name: 'Package.json Structure', fn: checkPackageJsonStructure },
+    { name: 'Yarn Lock', fn: checkYarnLock },
+    { name: 'Environment Files', fn: checkEnvironmentFiles },
+    { name: 'Railway Configuration', fn: checkRailwayConfig },
+    { name: 'Workspace Builds', fn: checkWorkspaceBuild }
+  ];
+  
+  for (const check of checks) {
+    log(`\n${'='.repeat(50)}`, 'blue');
+    log(`Running: ${check.name}`, 'blue');
+    log('='.repeat(50), 'blue');
+    
+    if (!check.fn()) {
+      allChecksPassed = false;
+    }
+  }
+  
+  // Final result
+  log('\n' + '='.repeat(50), 'bold');
+  if (allChecksPassed) {
+    log('🎉 All checks passed! Ready for Railway deployment.', 'green');
+    log('\nNext steps:', 'blue');
+    log('1. Follow the RAILWAY-DEPLOYMENT-PLAYBOOK.md', 'yellow');
+    log('2. Create Railway services as documented', 'yellow');
+    log('3. Set environment variables', 'yellow');
+    log('4. Deploy and test', 'yellow');
   } else {
-    log('  ❌ Environment validation failed', 'red');
+    log('❌ Some checks failed. Please fix the issues above before deploying.', 'red');
+    log('\nCommon fixes:', 'blue');
+    log('- Run yarn install to update dependencies', 'yellow');
+    log('- Check that all required files exist', 'yellow');
+    log('- Verify package.json scripts are correct', 'yellow');
   }
+  log('='.repeat(50), 'bold');
   
-  log('\n🎯 Next Steps:', 'cyan');
-  log('  1. Check Railway dashboard for deployment status', 'blue');
-  log('  2. Verify all environment variables are set correctly', 'blue');
-  log('  3. Test API endpoints manually', 'blue');
-  log('  4. Check Railway logs for any errors', 'blue');
-  
-  log('\n✨ Validation complete!', 'green');
-  
-  if (!envValid) {
-    process.exit(1);
-  }
+  process.exit(allChecksPassed ? 0 : 1);
 }
 
-// Run validation
-main().catch(error => {
-  log(`\n❌ Validation failed: ${error.message}`, 'red');
-  process.exit(1);
-});
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  checkFileExists,
+  checkPackageJsonScripts,
+  checkWorkspaceBuild,
+  checkEnvironmentFiles,
+  checkRailwayConfig,
+  checkPackageJsonStructure,
+  checkYarnLock
+};

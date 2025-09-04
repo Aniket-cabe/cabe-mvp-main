@@ -1,254 +1,312 @@
 # 🚀 Railway Deployment Playbook for CaBE Arena
 
-## 📋 **Prerequisites**
-- Railway account created
-- GitHub repository connected
-- Local development environment working
+## Overview
+This playbook provides step-by-step instructions for deploying the CaBE Arena monorepo to Railway as separate frontend and backend services.
 
-## 🎯 **Deployment Strategy**
-We'll create **two separate Railway services**:
-1. **cabe-backend** - Express API service
-2. **cabe-frontend** - React frontend service
+## Prerequisites
+- Railway account (free tier available)
+- GitHub repository with the code
+- Node.js 18-22 locally for testing
 
-## 🚀 **Step 1: Create Railway Project**
+## Local Validation Steps
 
-### 1.1 **Create New Project**
-- Go to [Railway Dashboard](https://railway.app)
-- Click "New Project"
-- Select "Deploy from GitHub repo"
-- Choose your `cabe-arena` repository
-- Name: `cabe-arena-monorepo`
+### 1. Install Dependencies
+```bash
+yarn install
+```
 
-### 1.2 **Project Settings**
-- **Root Directory**: `/` (leave default)
-- **Branch**: `main`
-- **Auto-Deploy**: ✅ Enabled
+### 2. Build Both Services
+```bash
+# Build backend (produces backend/dist/)
+yarn build:backend
 
-## 🔧 **Step 2: Create Backend Service**
+# Build frontend (produces frontend/dist/)
+yarn build:frontend
 
-### 2.1 **Add Backend Service**
-- In your Railway project, click "New Service"
-- Select "GitHub Repo"
-- **Service Name**: `cabe-backend`
-- **Root Directory**: `/` (leave default)
+# Or build both at once
+yarn build
+```
 
-### 2.2 **Backend Build Configuration**
-- **Build Command**: `yarn build:backend`
-- **Start Command**: `yarn start:backend`
-- **Watch Paths**: `/backend/**`
-- **Dockerfile Path**: `backend/Dockerfile`
-- **Railway Config File**: `railway-backend.json`
+### 3. Test Backend Locally
+```bash
+# Start backend on port 3001
+yarn start:backend
 
-### 2.3 **Backend Environment Variables**
-Set these in the backend service variables:
+# In another terminal, test health endpoint
+curl http://localhost:3001/health
+```
+
+### 4. Test Frontend Locally
+```bash
+# Start frontend preview server
+yarn start:frontend
+
+# Visit http://localhost:3000 in browser
+```
+
+## Railway Deployment Steps
+
+### Step 1: Create Railway Project
+1. Go to [Railway.app](https://railway.app)
+2. Click "New Project"
+3. Select "Deploy from GitHub repo"
+4. Choose your `cabe-arena` repository
+
+### Step 2: Add Database Services
+1. In your Railway project, click "New Service"
+2. Select "Database" → "PostgreSQL"
+3. Note the service name (e.g., `postgres`)
+4. Click "New Service" again
+5. Select "Database" → "MongoDB"
+6. Note the service name (e.g., `mongodb`)
+
+### Step 3: Create Backend Service
+1. Click "New Service" → "GitHub Repo"
+2. Select your repository
+3. Configure the backend service:
+   - **Service Name**: `cabe-backend`
+   - **Root Directory**: `/` (default)
+   - **Build Command**: `yarn build:backend`
+   - **Start Command**: `yarn start:backend`
+   - **Watch Paths**: `/backend/**`
+
+### Step 4: Create Frontend Service
+1. Click "New Service" → "GitHub Repo"
+2. Select your repository
+3. Configure the frontend service:
+   - **Service Name**: `cabe-frontend`
+   - **Root Directory**: `/` (default)
+   - **Build Command**: `yarn build:frontend`
+   - **Start Command**: `yarn start:frontend`
+   - **Watch Paths**: `/frontend/**`
+
+### Step 5: Configure Environment Variables
+
+#### Backend Service Variables
+Set these in the `cabe-backend` service:
 
 ```bash
-# Database
-DATABASE_URL=${{postgres.DATABASE_URL}}
-MONGO_URL=${{mongodb.MONGODB_URI}}
-
-# Authentication
-JWT_SECRET=your-super-secret-jwt-key-here
-JWT_EXPIRES_IN=7d
-BCRYPT_ROUNDS=12
-
-# Server
+# Server Configuration
 NODE_ENV=production
 PORT=3000
 HOST=0.0.0.0
 
-# Frontend URL (will be set after frontend deployment)
-FRONTEND_URL=https://your-frontend-service.railway.app
+# Database URLs (use Railway's variable references)
+DATABASE_URL=${{postgres.DATABASE_URL}}
+MONGO_URL=${{mongodb.MONGODB_URI}}
 
-# Supabase
+# Authentication
+JWT_SECRET=your-super-secret-jwt-key-here-make-it-long-and-random
+JWT_EXPIRES_IN=7d
+BCRYPT_ROUNDS=12
+
+# Frontend URL (update after frontend deploys)
+FRONTEND_URL=https://cabe-frontend-production.up.railway.app
+CORS_ORIGIN=https://cabe-frontend-production.up.railway.app
+
+# Supabase (if using)
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 
-# OpenAI
+# AI Services (optional)
 OPENAI_API_KEY=your-openai-api-key
+OPENAI_MODEL=gpt-4
 
-# Security
-CORS_ORIGIN=https://your-frontend-service.railway.app
-ENABLE_METRICS=true
-ENABLE_HEALTH_CHECKS=true
+# Feature Flags
+ENABLE_AI_SCORING=true
+ENABLE_AUDIT_LOGGING=true
+ENABLE_SLACK_NOTIFICATIONS=false
+
+# Logging
+LOG_LEVEL=info
 ```
 
-### 2.4 **Backend Health Check**
-- **Health Check Path**: `/health`
-- **Health Check Timeout**: 300 seconds
-
-## 🌐 **Step 3: Create Frontend Service**
-
-### 3.1 **Add Frontend Service**
-- In your Railway project, click "New Service"
-- Select "GitHub Repo"
-- **Service Name**: `cabe-frontend`
-- **Root Directory**: `/` (leave default)
-
-### 3.2 **Frontend Build Configuration**
-- **Build Command**: `yarn build:frontend`
-- **Start Command**: `yarn start:frontend`
-- **Watch Paths**: `/frontend/**`
-- **Dockerfile Path**: `frontend/Dockerfile`
-- **Railway Config File**: `railway-frontend.json`
-
-### 3.3 **Frontend Environment Variables**
-Set these in the frontend service variables:
+#### Frontend Service Variables
+Set these in the `cabe-frontend` service:
 
 ```bash
-# API Configuration
-VITE_API_BASE_URL=https://your-backend-service.railway.app
-BACKEND_URL=https://your-backend-service.railway.app
-
 # Environment
 NODE_ENV=production
 PORT=3000
+
+# API Configuration (update with actual backend URL)
+VITE_API_BASE_URL=https://cabe-backend-production.up.railway.app
+BACKEND_URL=https://cabe-backend-production.up.railway.app
 
 # App Configuration
 VITE_APP_NAME=CaBE Arena
 VITE_APP_VERSION=1.0.0
 ```
 
-### 3.4 **Frontend Health Check**
-- **Health Check Path**: `/health`
-- **Health Check Timeout**: 60 seconds
+### Step 6: Configure Health Checks
+1. In the `cabe-backend` service settings:
+   - **Health Check Path**: `/health`
+   - **Health Check Timeout**: 30 seconds
+2. In the `cabe-frontend` service settings:
+   - **Health Check Path**: `/health`
+   - **Health Check Timeout**: 30 seconds
 
-## 🗄️ **Step 4: Add Database Plugins**
+### Step 7: Deploy Services
+1. Click "Deploy" on both services
+2. Monitor the deployment logs
+3. Wait for both services to show "HEALTH = OK"
 
-### 4.1 **Add PostgreSQL Plugin**
-- In your Railway project, click "New Service"
-- Select "Plugin" → "PostgreSQL"
-- **Service Name**: `postgres`
-- **Version**: Latest stable
+### Step 8: Update URLs
+After both services are deployed:
+1. Get the public URLs from Railway dashboard
+2. Update the `FRONTEND_URL` and `CORS_ORIGIN` in backend service
+3. Update the `VITE_API_BASE_URL` and `BACKEND_URL` in frontend service
+4. Redeploy both services
 
-### 4.2 **Add MongoDB Plugin**
-- In your Railway project, click "New Service"
-- Select "Plugin" → "MongoDB"
-- **Service Name**: `mongodb`
-- **Version**: Latest stable
+## Verification Steps
 
-### 4.3 **Link Databases to Backend**
-- Go to `cabe-backend` service
-- Click "Variables" tab
-- Update these variables to reference the plugins:
-  ```bash
-  DATABASE_URL=${{postgres.DATABASE_URL}}
-  MONGO_URL=${{mongodb.MONGODB_URI}}
-  ```
-
-## 🔗 **Step 5: Link Services**
-
-### 5.1 **Update Frontend API URL**
-- Go to `cabe-frontend` service
-- Click "Variables" tab
-- Update `VITE_API_BASE_URL` to your backend service URL:
-  ```bash
-  VITE_API_BASE_URL=https://cabe-backend-production-xxxx.up.railway.app
-  ```
-
-### 5.2 **Update Backend CORS**
-- Go to `cabe-backend` service
-- Click "Variables" tab
-- Update `FRONTEND_URL` and `CORS_ORIGIN` to your frontend service URL:
-  ```bash
-  FRONTEND_URL=https://cabe-frontend-production-xxxx.up.railway.app
-  CORS_ORIGIN=https://cabe-frontend-production-xxxx.up.railway.app
-  ```
-
-## 🚀 **Step 6: Deploy and Test**
-
-### 6.1 **Deploy Backend First**
-- Go to `cabe-backend` service
-- Click "Deploy" button
-- Wait for build to complete
-- Verify health check passes: `/health`
-
-### 6.2 **Deploy Frontend**
-- Go to `cabe-frontend` service
-- Click "Deploy" button
-- Wait for build to complete
-- Verify frontend loads
-
-### 6.3 **Test Integration**
-- Test frontend loads: `https://cabe-frontend-production-xxxx.up.railway.app`
-- Test backend health: `https://cabe-backend-production-xxxx.up.railway.app/health`
-- Test API calls from frontend
-
-## ✅ **Step 7: Verification Checklist**
-
-- [ ] Backend service shows "Deployed" status
-- [ ] Frontend service shows "Deployed" status
-- [ ] Backend health check passes (`/health` returns 200)
-- [ ] Frontend health check passes (`/health` returns 200)
-- [ ] Frontend loads without errors
-- [ ] API calls from frontend to backend work
-- [ ] Database connections established
-- [ ] Environment variables properly set
-- [ ] Services accessible via public URLs
-
-## 🔧 **Troubleshooting**
-
-### Build Failures
-- Check build logs for dependency issues
-- Verify `yarn install` completes successfully
-- Ensure all environment variables are set
-
-### Runtime Errors
-- Check service logs for application errors
-- Verify database connection strings
-- Check CORS configuration
-
-### Health Check Failures
-- **Backend**: Ensure backend starts successfully and `/health` endpoint exists
-- **Frontend**: Ensure nginx serves static files and `/health` endpoint exists
-- Check if services bind to correct ports
-- Verify environment variables are set correctly
-
-## 📚 **Useful Commands**
-
-### Railway CLI (Optional)
+### 1. Test Backend Health
 ```bash
-# Install Railway CLI
-npm install -g @railway/cli
-
-# Login and link project
-railway login
-railway link
-
-# View logs
-railway logs
-
-# Set variables
-railway variables set KEY=value
-
-# Deploy manually
-railway up
+curl https://your-backend-url.up.railway.app/health
+```
+Expected response:
+```json
+{
+  "status": "ok",
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "uptime": 123.456,
+  "services": {
+    "database": "up",
+    "redis": "up"
+  }
+}
 ```
 
-### Local Testing
+### 2. Test Frontend
+1. Visit the frontend URL in your browser
+2. Check browser console for any errors
+3. Test basic functionality (login, navigation)
+
+### 3. Test API Integration
+1. Open browser developer tools
+2. Check Network tab for API calls
+3. Verify API calls are going to the correct backend URL
+
+## Troubleshooting
+
+### Common Issues
+
+#### Build Failures
+- Check Railway logs for specific error messages
+- Ensure all dependencies are in `package.json`
+- Verify workspace configuration
+
+#### Health Check Failures
+- Check if services are binding to `0.0.0.0:PORT`
+- Verify health check endpoints return 200 status
+- Check Railway logs for startup errors
+
+#### CORS Issues
+- Ensure `CORS_ORIGIN` includes the frontend URL
+- Check that `FRONTEND_URL` is set correctly
+- Verify Railway domains are in CORS whitelist
+
+#### Database Connection Issues
+- Verify database service names match variable references
+- Check database URLs are properly formatted
+- Ensure database services are running
+
+### Debugging Commands
+
+#### Check Service Logs
 ```bash
-# Test backend build
-yarn build:backend
+# Using Railway CLI
+railway logs --service cabe-backend
+railway logs --service cabe-frontend
+```
 
-# Test frontend build
-yarn build:frontend
+#### Test Locally with Railway Variables
+```bash
+# Set environment variables locally
+export DATABASE_URL="your-postgres-url"
+export MONGO_URL="your-mongo-url"
+export JWT_SECRET="your-jwt-secret"
 
-# Test backend start
+# Run locally
 yarn start:backend
-
-# Test frontend preview
-yarn start:frontend
 ```
 
-## 🎉 **Success Indicators**
+## Rollback Plan
 
-- ✅ Both services show "Deployed" status
-- ✅ Health checks pass for both services
-- ✅ Frontend loads and displays correctly
-- ✅ API calls work between services
-- ✅ Database connections established
-- ✅ Public URLs accessible
+If deployment fails:
+
+### 1. Revert Code Changes
+```bash
+git revert <commit-hash>
+git push origin main
+```
+
+### 2. Restore Specific Files
+```bash
+git checkout HEAD~1 -- backend/package.json
+git checkout HEAD~1 -- frontend/package.json
+```
+
+### 3. Redeploy Services
+1. Trigger new deployment in Railway
+2. Monitor logs for issues
+3. Rollback to previous working version if needed
+
+## Performance Optimization
+
+### 1. Enable Caching
+- Set appropriate cache headers in nginx config
+- Use Railway's CDN for static assets
+
+### 2. Database Optimization
+- Monitor database performance in Railway dashboard
+- Consider connection pooling settings
+
+### 3. Resource Scaling
+- Monitor CPU and memory usage
+- Scale services as needed in Railway dashboard
+
+## Security Considerations
+
+### 1. Environment Variables
+- Never commit secrets to git
+- Use Railway's secure environment variable storage
+- Rotate JWT secrets regularly
+
+### 2. CORS Configuration
+- Only allow necessary origins
+- Use HTTPS in production
+
+### 3. Database Security
+- Use strong passwords
+- Enable SSL connections
+- Regular security updates
+
+## Monitoring and Maintenance
+
+### 1. Health Monitoring
+- Set up Railway alerts for service failures
+- Monitor response times and error rates
+
+### 2. Log Management
+- Review logs regularly
+- Set up log aggregation if needed
+
+### 3. Updates
+- Keep dependencies updated
+- Test updates in staging environment first
+- Use Railway's zero-downtime deployments
+
+## Support
+
+For issues with this deployment:
+1. Check Railway documentation
+2. Review service logs
+3. Test locally with same environment variables
+4. Contact Railway support if needed
 
 ---
 
-**Your CaBE Arena application is now successfully deployed on Railway!** 🚀
+**Last Updated**: January 2024
+**Version**: 1.0.0

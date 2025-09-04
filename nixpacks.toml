@@ -1,5 +1,5 @@
 [phases.setup]
-nix_pkgs = ["nodejs-22_x"]
+nix_pkgs = ["nodejs-22_x", "yarn"]
 
 [phases.install]
 cmds = ["yarn install --frozen-lockfile"]
@@ -9,3 +9,6 @@ cmds = ["yarn build"]
 
 [phases.start]
 cmd = "yarn start:backend"
+
+[variables]
+NODE_ENV = "production"

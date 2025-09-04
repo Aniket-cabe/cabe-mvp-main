@@ -9,11 +9,11 @@
     "shared/*"
   ],
   "scripts": {
-    "build:frontend": "yarn workspace frontend build",
-    "build:backend": "yarn workspace backend build",
+    "build:frontend": "yarn workspace @cabe-arena/frontend build",
+    "build:backend": "yarn workspace @cabe-arena/backend build",
     "build": "yarn build:backend && yarn build:frontend",
-    "start:backend": "yarn workspace backend start",
-    "start:frontend": "yarn workspace frontend preview",
+    "start:backend": "yarn workspace @cabe-arena/backend start",
+    "start:frontend": "yarn workspace @cabe-arena/frontend preview",
     "start": "concurrently \"yarn start:backend\" \"yarn start:frontend\"",
     "dev": "concurrently \"yarn workspace backend dev\" \"yarn workspace frontend dev\"",
     "dev:backend": "yarn workspace backend dev",
